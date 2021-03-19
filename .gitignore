@@ -1,0 +1,15 @@
+*.o
+*.pdf
+*.fig
+*.dat
+fort.*
+*.go3
+*.txt
+*.log
+*.tex
+*.aux
+*.save*
+int2*
+*.so
+*.a
+*.vtk
