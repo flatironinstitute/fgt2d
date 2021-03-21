@@ -1801,7 +1801,7 @@ C     h2l        = translation matrix
 C
       implicit real*8 (a-h,o-z)
       real *8 h2l(0:ntermsh,0:nlocal)
-      real *8 fac(0:100),hexpx(0:100)
+      real *8 fac(0:200),hexpx(0:200)
       real *8, allocatable :: sqc(:,:)
 
       ntot = ntermsh+nlocal
@@ -1809,7 +1809,7 @@ C
       call getsqrtbinomialcoeffs(ntot,sqc)
       
       fac(0)=1.0d0
-      do i=1,100
+      do i=1,nlocal
          fac(i)=fac(i-1)*sqrt(i*1.0d0)
       enddo
 
@@ -1817,7 +1817,7 @@ C
       hexpx(0)=1.0d0
       hexpx(1)=2*x
       
-      do i=1,99
+      do i=1,ntermsh+nlocal
          hexpx(i+1)=2.0d0*(x/dsqrt((i+1)*1.0d0)*hexpx(i)
      1          -dsqrt(1.0d0*i/(i+1))*hexpx(i-1))
       enddo
@@ -1858,6 +1858,7 @@ C
       fac(0)=1.0d0
       do i=1,100
          fac(i)=fac(i-1)/sqrt(dble(i))
+cccc         fac(i)=fac(i-1)/i
       enddo
 
       
@@ -1866,7 +1867,7 @@ C
             h2s(j,i)=ws(i)*ts(i)**j*fac(j)
          enddo
       enddo
-
+      
       return
       end
 C
@@ -1897,6 +1898,7 @@ C
       fac(0)=1.0d0
       do i=1,100
          fac(i)=fac(i-1)/sqrt(dble(i))
+cccc         fac(i)=fac(i-1)/i
       enddo
       
       do i=-npw,npw
@@ -1938,6 +1940,7 @@ C
       fac(0)=1.0d0
       do i=1,100
          fac(i)=fac(i-1)/sqrt(dble(i))
+cccc         fac(i)=fac(i-1)/i
       enddo
       
       do i=-npw,npw
@@ -1945,7 +1948,7 @@ C
             h2x(j,i)=ws(i)*(-eye*ts(i))**j*fac(j)
          enddo
       enddo
-
+      
       return
       end
 C

@@ -139,7 +139,7 @@ C evaluate SOE/X expansions (potential only)
 C
 C*********************************************************************
       subroutine g2dsxevalp_vec(nd,delta,center,pmax,npw,nns,
-     1              spall,targ,ws,ts,pot)
+     1              spall,targ,ntarg,ws,ts,pot)
 C
 C     This subroutine evaluates the hybrid SOE/plane wave 
 C     expansions about CENTER at location TARG
@@ -163,14 +163,14 @@ C
 C     pot           = potential is incremented
 C
       implicit none
-      integer nd,nns,i,ind,j1,j2,j,npw,nexp
-      real *8 center(2),targ(2)
-      real *8 x,y,xpoint,pot(nd),delta,pmax,dsq
+      integer nd,nns,i,ind,j1,j2,j,npw,nexp,itarg,ntarg
+      real *8 center(2),targ(2,ntarg)
+      real *8 x,y,xpoint,pot(nd,ntarg),delta,pmax,dsq
       real *8 facx,facy,pi,w,xq
       complex *16 z,eye
       complex *16 spall(4*(2*npw+1)*nns,nd)
       complex *16 ws(nns),ts(nns)
-      complex *16 ww1p(6),ww2p(6),ww1m(6),ww2m(6)
+      complex *16 ww1p(20),ww2p(20),ww1m(20),ww2m(20)
       complex *16, allocatable :: wtall(:)
       complex *16, allocatable :: sumz(:)
       complex *16 ww1(-100:100)
@@ -187,40 +187,47 @@ c
       pi = 4.0d0*datan(1.0d0)
       eye = dcmplx(0,1)
       w = pmax/(2*2.0d0*npw*dsqrt(pi))
-      x = (targ(1) - center(1))*dsq
-      y = (targ(2) - center(2))*dsq
-      do j =-npw,npw
-         xq = j*pmax/npw
-         ww1(j) = cdexp(eye*xq*x)
-         ww2(j) = cdexp(eye*xq*y)
-      enddo
-
-      do j1=1,nns
-         ww1p(j1) = cdexp(-ts(j1)*x)
-         ww2p(j1) = cdexp(-ts(j1)*y)
-         ww1m(j1) = cdexp(ts(j1)*x)
-         ww2m(j1) = cdexp(ts(j1)*y)
-      enddo
-c
-      j = 0
-      nexp = (2*npw+1)*nns
-      do j1=1,nns
-      do j2=-npw,npw
-         j = j+1
-         wtall(j) = ww1p(j1)*ww2(j2)
-         wtall(nexp+j) = ww1m(j1)*ww2(j2)
-         wtall(2*nexp+j) = ww2p(j1)*ww1(j2)
-         wtall(3*nexp+j) = ww2m(j1)*ww1(j2)
-      enddo
-      enddo
-c
-      do ind=1,nd
-         sumz(ind) = 0.0d0
-         do j=1,4*nexp
-            sumz(ind) = sumz(ind) +
-     1      wtall(j)*spall(j,ind)
+      do itarg=1,ntarg
+         x = (targ(1,itarg) - center(1))*dsq
+         y = (targ(2,itarg) - center(2))*dsq
+         do j =-npw,0
+            xq = j*pmax/npw
+            ww1(j) = cdexp(eye*xq*x)
+            ww2(j) = cdexp(eye*xq*y)
          enddo
-         pot(ind) = pot(ind) + dreal(sumz(ind))
+
+         do j=1,npw
+            ww1(j) = conjg(ww1(-j))
+            ww2(j) = conjg(ww2(-j))
+         enddo
+         
+         do j1=1,nns
+            ww1p(j1) = cdexp(-ts(j1)*x)
+            ww2p(j1) = cdexp(-ts(j1)*y)
+            ww1m(j1) = 1/ww1p(j1)
+            ww2m(j1) = 1/ww2p(j1)
+         enddo
+c
+         j = 0
+         nexp = (2*npw+1)*nns
+         do j1=1,nns
+            do j2=-npw,npw
+               j = j+1
+               wtall(j) = ww1p(j1)*ww2(j2)
+               wtall(nexp+j) = ww1m(j1)*ww2(j2)
+               wtall(2*nexp+j) = ww2p(j1)*ww1(j2)
+               wtall(3*nexp+j) = ww2m(j1)*ww1(j2)
+            enddo
+         enddo
+c
+         do ind=1,nd
+            sumz(ind) = 0.0d0
+            do j=1,4*nexp
+               sumz(ind) = sumz(ind) +
+     1             wtall(j)*spall(j,ind)
+            enddo
+            pot(ind,itarg) = pot(ind,itarg) + dble(sumz(ind))
+         enddo
       enddo
 c
       return

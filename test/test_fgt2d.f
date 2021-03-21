@@ -52,7 +52,7 @@ c
       nd = 1
       delta = 5.0d-4
       bb = 1.0d0/(2.0d0**6)
-      delta = bb*bb/(1.5*1.5)
+      delta = bb*bb/(1.5*1.5)/16
 cccc      delta = 0.1*delta
 
       call prin2(' delta = *',delta,1)
@@ -108,7 +108,7 @@ c
 
       ifcharge = 1
       ifdipole = 1
-      ifpgh = 3
+      ifpgh = 2
       ifpghtarg = 3
       call prinf(' ifcharge is *',ifcharge,1)
       call prinf(' ifdipole is *',ifdipole,1)
@@ -125,15 +125,16 @@ cccc      write(6,*) 'pot is',(pot(i),i=1,nts)
 cccc      write(6,*) 'gradx is',(grad(1,i),i=1,nts)
 cccc      write(6,*) 'grady is',(grad(2,i),i=1,nts)
 
-      call fgt2dpart_direct_vec(1,delta,1,nsrc,1,nts,sources,ifcharge,
-     1            charges,ifdipole,rnormal,dipstr,
+      reps = 1.0d-100
+      call fgt2dpart_direct_vec(1,delta,reps,1,nsrc,1,nts,sources,
+     1            ifcharge,charges,ifdipole,rnormal,dipstr,
      2            sources,ifpgh,potex,gradex,hessex)
 cccc      write(6,*) 'potex is',(potex(i),i=1,nts)
 cccc      write(6,*) 'gradexx is',(gradex(1,i),i=1,nts)
 cccc      write(6,*) 'gradexy is',(gradex(2,i),i=1,nts)
 
-      call fgt2dpart_direct_vec(1,delta,1,nsrc,1,ntt,sources,ifcharge,
-     1            charges,ifdipole,rnormal,dipstr,
+      call fgt2dpart_direct_vec(1,delta,reps,1,nsrc,1,ntt,sources,
+     1            ifcharge,charges,ifdipole,rnormal,dipstr,
      2            targ,ifpghtarg,pottargex,gradtargex,hesstargex)
 cccc      write(6,*) 'pottarg is',(pottarg(i),i=1,ntt)
 cccc      write(6,*) 'pottargex is',(pottargex(i),i=1,ntt)

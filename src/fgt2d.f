@@ -122,7 +122,7 @@ c     Need to fix ndiv in Laplace FMM
 c   
 c
       idivflag =0
-      ndiv = 20
+      ndiv = 4
 c
       ltree = 0
       nboxes = 0
@@ -154,7 +154,7 @@ c     box size is an integer of bgf to avoid possible loss of accuracy
 c
       ngrid = ceiling(1/bgf)
 c     nlmax is the number of levels, either 2 or 3
-      nlmax = 2
+      nlmax = 1
       if (ns/(ngrid*ngrid*16) .gt. 120) nlmax=3
 c      
       call pts_tree_mem(sources,ns,targ,nt,idivflag,ndiv,ngrid,nlmax,
@@ -324,6 +324,14 @@ c
          else
             ntermsh = 34
             nlocal = 34
+         endif
+      elseif (nlevels .eq. 0) then
+         if (ifdipole.eq.1 .or. ifpgh.ge.2 .or. ifpghtarg.ge.2) then
+            ntermsh = 76
+            nlocal = 76
+         else
+            ntermsh = 70
+            nlocal = 70
          endif
       endif
 
@@ -535,7 +543,9 @@ c             which points to where different elements
 c             of the tree are stored in the itree array
 c
 c     ndiv    in: integer
-c             Max number of chunks per box
+c             Max number of points per box at the level where only the interactions
+c             between its neighbors need to be considered
+c
 c
 c     nlevels in: integer
 c             number of levels in the tree
@@ -650,12 +660,13 @@ c
       
       integer ifhesstarg,nn,jx,jy
       real *8 d,time1,time2,omp_get_wtime
-      real *8 tt1,tt2,xmin,xmin2,t1,t2
+      real *8 tt1,tt2,xmin,xmin2,t1,t2,pmax
       real *8 pottmp,gradtmp(2),hesstmp(3)
 
       integer mnlistsoe,mnlistsx
       integer, allocatable :: nlistsoe(:,:),listsoe(:,:,:)
       integer, allocatable :: nlistsx(:,:),listsx(:,:,:)
+      integer, allocatable :: ifhung(:)
       
       real *8, allocatable :: h2l(:,:),rh2x(:,:)
       
@@ -686,6 +697,7 @@ c     get planewave nodes and weights
       allocate(wx(-npw:npw))
       allocate(tx(-npw:npw))
       call get_pwnodes(npw,wx,tx)
+      pmax = 10.6d0
 
 c     compute translation matrices for SOE and SOE/X expansions
       xmin = boxsize(nlevels)/sqrt(delta)
@@ -753,6 +765,31 @@ c
       pi = 4*atan(1.0d0)
 
 c
+      allocate(ifhung(nboxes))
+      do i=1,nboxes
+         ifhung(i)=0
+      enddo
+
+      do ilev = 0,0
+C
+C$OMP PARALLEL DO DEFAULT (SHARED)
+C$OMP$PRIVATE(ibox,nchild,istart,iend,npts)
+C$OMP$SCHEDULE(DYNAMIC)
+         do ibox=laddr(1,ilev),laddr(2,ilev)
+            nchild = itree(iptr(4)+ibox-1)
+            istart = isrcse(1,ibox)
+            iend = isrcse(2,ibox)
+            npts = iend-istart+1
+cccc  if (nchild .eq. 0) call prinf('npts=*',npts,1)
+c     Check if current box is a leaf box            
+            if(nchild.eq.0.and.npts.le.ndiv) then
+               ifhung(ibox) = 1
+            endif
+         enddo
+      enddo
+
+cccc      call prinf('ifhung=*',ifhung,nboxes)
+      
       do i=0,nlevels
          timelev(i) = 0
       enddo
@@ -814,6 +851,7 @@ C$OMP PARALLEL DO DEFAULT (SHARED)
 C$OMP$PRIVATE(ibox,nchild,istart,iend,npts)
 C$OMP$SCHEDULE(DYNAMIC)
           do ibox=laddr(1,ilev),laddr(2,ilev)
+             if (ifhung(ibox) .eq. 0) then 
              nchild = itree(iptr(4)+ibox-1)
              istart = isrcse(1,ibox)
              iend = isrcse(2,ibox)
@@ -821,13 +859,6 @@ C$OMP$SCHEDULE(DYNAMIC)
 cccc             if (nchild .eq. 0) call prinf('npts=*',npts,1)
 c            Check if current box is a leaf box            
              if(nchild.eq.0.and.npts.gt.0) then
-c
-c               form local Taylor expansion
-c                
-cccc                call g2dformlc_vec(nd,delta,
-cccc     1             sourcesort(1,istart),npts,chargesort(1,istart),
-cccc     2             centers(1,ibox),
-cccc     3             nlocal,rmlexp(iaddr(5,ibox)))
 c
 c               form the Hermite expansion
 c                
@@ -842,11 +873,30 @@ c
 c                call g2dh2sx_h2s_real_vec(nd,ntermsh,npw,nsoe,h2s,rh2x,
      1              rmlexp(iaddr(6,ibox)),
      2              rmlexp(iaddr(2,ibox)),rmlexp(iaddr(1,ibox)))
+cccc                call g2dformsc_vec(nd,delta,
+cccc     1              sourcesort(1,istart),npts,chargesort(1,istart),
+cccc     2              centers(1,ibox),
+cccc     3              nsoe,ws,ts,rmlexp(iaddr(1,ibox)))
+cccc                call g2dformsxc_vec(nd,delta,
+cccc     1              sourcesort(1,istart),npts,chargesort(1,istart),
+cccc     2              centers(1,ibox),pmax,npw,
+cccc     3              nsoehalf,ws,ts,rmlexp(iaddr(2,ibox)))
+                if (ntermsh .gt. 40) then
 c
+c               form local Taylor expansion
+c                
+                   call g2dformlc_vec(nd,delta,
+     1                 sourcesort(1,istart),npts,chargesort(1,istart),
+     2                 centers(1,ibox),
+     3                 nlocal,rmlexp(iaddr(5,ibox)))
+                else
+c     
 c convert the Hermite expansion to local Taylor expansion
 c
-                call g2dherm2local_vec(nd,nlocal,ntermsh,h2l,
-     1              rmlexp(iaddr(6,ibox)),rmlexp(iaddr(5,ibox)))
+                   call g2dherm2local_vec(nd,nlocal,ntermsh,h2l,
+     1                 rmlexp(iaddr(6,ibox)),rmlexp(iaddr(5,ibox)))
+                endif
+             endif
              endif
           enddo
 C$OMP END PARALLEL DO 
@@ -856,17 +906,14 @@ C$OMP END PARALLEL DO
 C$OMP PARALLEL DO DEFAULT (SHARED)
 C$OMP$PRIVATE(ibox,nchild,istart,iend,npts)
 C$OMP$SCHEDULE(DYNAMIC)
-          do ibox=laddr(1,ilev),laddr(2,ilev)
+           do ibox=laddr(1,ilev),laddr(2,ilev)
+             if (ifhung(ibox) .eq. 0) then
              nchild = itree(iptr(4)+ibox-1)
              istart = isrcse(1,ibox)
              iend = isrcse(2,ibox)
              npts = iend-istart+1
 c              Check if current box is a leaf box            
              if(nchild.eq.0.and.npts.gt.0) then
-cccc                call g2dformld_vec(nd,delta,
-cccc     1             sourcesort(1,istart),npts,rnormalsort(1,istart),
-cccc     2             dipstrsort(1,istart),centers(1,ibox),
-cccc     3             nlocal,rmlexp(iaddr(5,ibox)))
                 call g2dformhd_vec(nd,delta,
      1             sourcesort(1,istart),npts,rnormalsort(1,istart),
      2             dipstrsort(1,istart),centers(1,ibox),
@@ -881,11 +928,20 @@ cc              uncomment to see the performance of real h2x
 c                call g2dh2sx_h2s_real_vec(nd,ntermsh,npw,nsoe,h2s,rh2x,
      1              rmlexp(iaddr(6,ibox)),
      2              rmlexp(iaddr(2,ibox)),rmlexp(iaddr(1,ibox)))
+                if (ntermsh .gt. 40) then
+                   call g2dformld_vec(nd,delta,
+     1                 sourcesort(1,istart),npts,rnormalsort(1,istart),
+     2                 dipstrsort(1,istart),centers(1,ibox),
+     3                 nlocal,rmlexp(iaddr(5,ibox)))
+                else
+                
 c
 c convert the Hermite expansion to local Taylor expansion
 c                
-                call g2dherm2local_vec(nd,nlocal,ntermsh,h2l,
-     1              rmlexp(iaddr(6,ibox)),rmlexp(iaddr(5,ibox)))
+                   call g2dherm2local_vec(nd,nlocal,ntermsh,h2l,
+     1                 rmlexp(iaddr(6,ibox)),rmlexp(iaddr(5,ibox)))
+                endif
+             endif
              endif
           enddo
 C$OMP END PARALLEL DO 
@@ -895,17 +951,14 @@ C$OMP END PARALLEL DO
 C$OMP PARALLEL DO DEFAULT (SHARED)
 C$OMP$PRIVATE(ibox,nchild,istart,iend,npts)
 C$OMP$SCHEDULE(DYNAMIC)
-          do ibox=laddr(1,ilev),laddr(2,ilev)
+           do ibox=laddr(1,ilev),laddr(2,ilev)
+             if (ifhung(ibox) .eq. 0) then
              nchild = itree(iptr(4)+ibox-1)
              istart = isrcse(1,ibox)
              iend = isrcse(2,ibox)
              npts = iend-istart+1
 c             Check if current box is a leaf box            
              if(nchild.eq.0.and.npts.gt.0) then
-cccc                call g2dformlcd_vec(nd,delta,
-cccc     1             sourcesort(1,istart),npts,chargesort(1,istart),
-cccc     2             rnormalsort(1,istart),dipstrsort(1,istart),
-cccc     3             centers(1,ibox),nlocal,rmlexp(iaddr(5,ibox)))
                 call g2dformhcd_vec(nd,delta,
      1             sourcesort(1,istart),npts,chargesort(1,istart),
      2             rnormalsort(1,istart),dipstrsort(1,istart),
@@ -917,11 +970,19 @@ c
 c                call g2dh2sx_h2s_real_vec(nd,ntermsh,npw,nsoe,h2s,rh2x,
      1              rmlexp(iaddr(6,ibox)),
      2              rmlexp(iaddr(2,ibox)),rmlexp(iaddr(1,ibox)))
-c
+                if (ntermsh .gt. 40) then
+                   call g2dformlcd_vec(nd,delta,
+     1                 sourcesort(1,istart),npts,chargesort(1,istart),
+     2                 rnormalsort(1,istart),dipstrsort(1,istart),
+     3                 centers(1,ibox),nlocal,rmlexp(iaddr(5,ibox)))
+                else
+c     
 c convert the Hermite expansion to local Taylor expansion
 c
-                call g2dherm2local_vec(nd,nlocal,ntermsh,h2l,
-     1              rmlexp(iaddr(6,ibox)),rmlexp(iaddr(5,ibox)))
+                   call g2dherm2local_vec(nd,nlocal,ntermsh,h2l,
+     1                 rmlexp(iaddr(6,ibox)),rmlexp(iaddr(5,ibox)))
+                endif
+             endif
              endif
           enddo
 C$OMP END PARALLEL DO 
@@ -1118,6 +1179,14 @@ c
                call g2dlevalp_vec(nd,delta,centers(1,ibox),
      1             nlocal,rmlexp(iaddr(5,ibox)),targetsort(1,istart),
      2             npts,pottarg(1,istart))
+cccc               call g2dsevalp_vec(nd,delta,centers(1,ibox),nsoe,ws,ts,
+cccc     1             rmlexp(iaddr(3,ibox)),targetsort(1,istart),
+cccc     2             npts,pottarg(1,istart))
+cccc               
+cccc               call g2dsxevalp_vec(nd,delta,centers(1,ibox),pmax,npw,
+cccc     1             nsoehalf,rmlexp(iaddr(4,ibox)),targetsort(1,istart),
+cccc     2             npts,ws,ts,pottarg(1,istart))
+               
             endif
             if(ifpghtarg.eq.2) then
                call g2dlevalg_vec(nd,delta,centers(1,ibox),
@@ -1144,7 +1213,13 @@ c
             if(ifpgh.eq.1) then
                call g2dlevalp_vec(nd,delta,centers(1,ibox),
      1             nlocal,rmlexp(iaddr(5,ibox)),sourcesort(1,istart),
-     2             npts,pot(1,istart)) 
+     2             npts,pot(1,istart))
+cccc               call g2dsevalp_vec(nd,delta,centers(1,ibox),nsoe,ws,ts,
+cccc     1             rmlexp(iaddr(3,ibox)),sourcesort(1,istart),
+cccc     2             npts,pot(1,istart))
+cccc               call g2dsxevalp_vec(nd,delta,centers(1,ibox),pmax,npw,
+cccc     1             nsoehalf,rmlexp(iaddr(4,ibox)),sourcesort(1,istart),
+cccc     2             npts,ws,ts,pot(1,istart))
             endif
             if(ifpgh.eq.2) then
                call g2dlevalg_vec(nd,delta,centers(1,ibox),
@@ -1166,33 +1241,35 @@ C$OMP END PARALLEL DO
 C$    time2 = omp_get_wtime()      
       timeinfo(5) = time2 - time1
 
-cccc      if(ifprint .ge. 1)
-cccc     $     call prinf('=== STEP 8 (direct) =====*',i,0)
-cccc
-ccccc
-cccccc
-cccc      call cpu_time(time1)
-ccccC$    time1=omp_get_wtime()  
-cccc      do ilev = nlevels,nlevels
-ccccC$OMP PARALLEL DO DEFAULT(SHARED)
-ccccC$OMP$PRIVATE(ibox,jbox,istartt,iendt,i,jstart,jend,istarte,iende)
-ccccC$OMP$PRIVATE(istarts,iends,nptssrc,nptstarg)
-ccccC$OMP$SCHEDULE(DYNAMIC)  
-cccc         do ibox = laddr(1,ilev),laddr(2,ilev)
-cccc
-cccc            istartt = itargse(1,ibox)
-cccc            iendt = itargse(2,ibox)
-cccc            nptstarg = iendt-istartt + 1
-cccc
-cccc            istarts = isrcse(1,ibox)
-cccc            iends = isrcse(2,ibox)
-cccc            nptssrc = iends-istarts + 1
-cccc
-cccc            jbox = ibox
-cccc
-cccc            jstart = isrcse(1,jbox)
-cccc            jend = isrcse(2,jbox)
-cccc
+      if(ifprint .ge. 1)
+     $     call prinf('=== STEP 6 (direct) =====*',i,0)
+
+c
+cc
+      call cpu_time(time1)
+C$    time1=omp_get_wtime()  
+      do ilev = 0,0
+C$OMP PARALLEL DO DEFAULT(SHARED)
+C$OMP$PRIVATE(ibox,jbox,istartt,iendt,i,jstart,jend,istarte,iende)
+C$OMP$PRIVATE(istarts,iends,nptssrc,nptstarg)
+C$OMP$SCHEDULE(DYNAMIC)  
+         do jbox = laddr(1,ilev),laddr(2,ilev)
+            if (ifhung(jbox) .eq. 1) then
+               jstart = isrcse(1,jbox)
+               jend = isrcse(2,jbox)
+               
+
+               ncoll = itree(iptr(6)+jbox-1)
+               do i=1,ncoll
+                  ibox = itree(iptr(7) + (jbox-1)*9+i-1)
+cccc               ibox=jbox
+                  istarts = isrcse(1,ibox)
+                  iends = isrcse(2,ibox)
+                  nptssrc = iends-istarts + 1
+                  
+                  istartt = itargse(1,ibox)
+                  iendt = itargse(2,ibox)
+                  nptstarg = iendt-istartt + 1
 ccccc
 ccccc     use Hermite expansion for self interactions
 ccccc     
@@ -1203,26 +1280,29 @@ cccc
 cccc            call g2dhermevalp_vec(nd,delta,centers(1,ibox),
 cccc     1          ntermsh,rmlexp(iaddr(6,ibox)),sourcesort(1,istarts),
 cccc     2          nptssrc,pot(1,istarts)) 
-ccccc
-cccc            
-cccccccc            call fgt2dpart_direct_vec(nd,delta,jstart,jend,
-cccccccc     1         istartt,iendt,sourcesort,ifcharge,chargesort,ifdipole,
-cccccccc     2         rnormalsort,dipstrsort,targetsort,ifpghtarg,pottarg,
-cccccccc     3         gradtarg,hesstarg)
-cccccccc         
-cccccccc            call fgt2dpart_direct_vec(nd,delta,jstart,jend,
-cccccccc     1         istarts,iends,sourcesort,ifcharge,chargesort,ifdipole,
-cccccccc     2         rnormalsort,dipstrsort,sourcesort,ifpgh,pot,grad,hess)
-cccc         enddo
-ccccC$OMP END PARALLEL DO         
-cccc      enddo
-cccc
-cccc      call cpu_time(time2)
-ccccC$    time2=omp_get_wtime()  
-cccc      timeinfo(8) = time2-time1
-      if(ifprint.ge.1) call prin2('timeinfo=*',timeinfo,5)
+c
+            
+                  call fgt2dpart_direct_vec(nd,delta,eps/90,jstart,jend,
+     1                istartt,iendt,sourcesort,ifcharge,chargesort,
+     2                ifdipole,rnormalsort,dipstrsort,targetsort,
+     3                ifpghtarg,pottarg,gradtarg,hesstarg)
+         
+                  call fgt2dpart_direct_vec(nd,delta,eps/90,jstart,jend,
+     1                istarts,iends,sourcesort,ifcharge,chargesort,
+     2                ifdipole,rnormalsort,dipstrsort,sourcesort,
+     3                ifpgh,pot,grad,hess)
+               enddo
+            endif
+         enddo
+C$OMP END PARALLEL DO         
+      enddo
+
+      call cpu_time(time2)
+C$    time2=omp_get_wtime()  
+      timeinfo(6) = time2-time1
+      if(ifprint.ge.1) call prin2('timeinfo=*',timeinfo,6)
       d = 0
-      do i = 1,5
+      do i = 1,6
          d = d + timeinfo(i)
       enddo
 
@@ -1233,9 +1313,10 @@ cccc      if(ifprint.ge.1) call prin2('timlev=*',timelev,nlevels+1)
       end
 c
 c------------------------------------------------------------------     
-      subroutine fgt2dpart_direct_vec(nd,delta,istart,iend,jstart,jend,
-     $     source,ifcharge,charge,ifdipole,rnormal,dipstr,
-     $     targ,ifpgh,pot,grad,hess)
+      subroutine fgt2dpart_direct_vec(nd,delta,eps,istart,iend,
+     $    jstart,jend,source,ifcharge,charge,
+     2    ifdipole,rnormal,dipstr,
+     $    targ,ifpgh,pot,grad,hess)
 c--------------------------------------------------------------------
 c     This subroutine adds the contribution due to sources
 c     istart to iend in the source array to the fields at targets
@@ -1309,7 +1390,7 @@ c
         real *8 source(2,*)
         real *8 rnormal(2,*)
         real *8 charge(nd,*),dipstr(nd,*)
-        real *8 targ(2,*),delta
+        real *8 targ(2,*),delta,eps
         real *8 pot(nd,*)
         real *8 grad(nd,2,*)
         real *8 hess(nd,3,*)
@@ -1318,20 +1399,20 @@ c
         if(ifcharge.eq.1.and.ifdipole.eq.0) then
           if(ifpgh.eq.1) then
              do j=jstart,jend
-               call g2d_directcp_vec(nd,delta,source(1,istart),ns,
+               call g2d_directcp_vec(nd,delta,eps,source(1,istart),ns,
      1            charge(1,istart),targ(1,j),pot(1,j))
              enddo
           endif
 
           if(ifpgh.eq.2) then
              do j=jstart,jend
-               call g2d_directcg_vec(nd,delta,source(1,istart),ns,
+               call g2d_directcg_vec(nd,delta,eps,source(1,istart),ns,
      1            charge(1,istart),targ(1,j),pot(1,j),grad(1,1,j))
              enddo
           endif
           if(ifpgh.eq.3) then
              do j=jstart,jend
-               call g2d_directch_vec(nd,delta,source(1,istart),ns,
+               call g2d_directch_vec(nd,delta,eps,source(1,istart),ns,
      1            charge(1,istart),targ(1,j),pot(1,j),grad(1,1,j),
      2            hess(1,1,j))
              enddo
@@ -1341,21 +1422,21 @@ c
         if(ifcharge.eq.0.and.ifdipole.eq.1) then
           if(ifpgh.eq.1) then
              do j=jstart,jend
-               call g2d_directdp_vec(nd,delta,source(1,istart),ns,
+               call g2d_directdp_vec(nd,delta,eps,source(1,istart),ns,
      1          rnormal(1,istart),dipstr(1,istart),targ(1,j),pot(1,j))
              enddo
           endif
 
           if(ifpgh.eq.2) then
              do j=jstart,jend
-               call g2d_directdg_vec(nd,delta,source(1,istart),ns,
+               call g2d_directdg_vec(nd,delta,eps,source(1,istart),ns,
      1            rnormal(1,istart),dipstr(1,istart),targ(1,j),
      2            pot(1,j),grad(1,1,j))
              enddo
           endif
           if(ifpgh.eq.3) then
              do j=jstart,jend
-               call g2d_directdh_vec(nd,delta,source(1,istart),ns,
+               call g2d_directdh_vec(nd,delta,eps,source(1,istart),ns,
      1            rnormal(1,istart),dipstr(1,istart),targ(1,j),
      2            pot(1,j),grad(1,1,j),hess(1,1,j))
              enddo
@@ -1365,7 +1446,7 @@ c
         if(ifcharge.eq.1.and.ifdipole.eq.1) then
           if(ifpgh.eq.1) then
              do j=jstart,jend
-               call g2d_directcdp_vec(nd,delta,source(1,istart),ns,
+               call g2d_directcdp_vec(nd,delta,eps,source(1,istart),ns,
      1            charge(1,istart),rnormal(1,istart),dipstr(1,istart),
      2            targ(1,j),pot(1,j))
              enddo
@@ -1373,14 +1454,14 @@ c
 
           if(ifpgh.eq.2) then
              do j=jstart,jend
-               call g2d_directcdg_vec(nd,delta,source(1,istart),ns,
+               call g2d_directcdg_vec(nd,delta,eps,source(1,istart),ns,
      1            charge(1,istart),rnormal(1,istart),dipstr(1,istart),
      2            targ(1,j),pot(1,j),grad(1,1,j))
              enddo
           endif
           if(ifpgh.eq.3) then
              do j=jstart,jend
-               call g2d_directcdh_vec(nd,delta,source(1,istart),ns,
+               call g2d_directcdh_vec(nd,delta,eps,source(1,istart),ns,
      1            charge(1,istart),rnormal(1,istart),dipstr(1,istart),
      2            targ(1,j),pot(1,j),grad(1,1,j),hess(1,1,j))
              enddo

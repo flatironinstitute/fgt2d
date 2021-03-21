@@ -63,7 +63,7 @@ COMOBJS = $(COM)/prini_new.o \
 	$(COM)/sparse_reps.o \
 	$(COM)/cumsum.o \
 	$(COM)/fmmcommon2d.o \
-	$(COM)/pts_tree2d2.o \
+	$(COM)/pts_tree2d3.o \
 	$(COM)/tree_routs4.o 
 
 # Gauss transform objects

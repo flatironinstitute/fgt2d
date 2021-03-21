@@ -403,8 +403,8 @@ c
          do j1=1,nn/2
             ww1p(j1) = cdexp(-ts(j1)*x)
             ww2p(j1) = cdexp(-ts(j1)*y)
-            ww1m(j1) = cdexp(ts(j1)*x)
-            ww2m(j1) = cdexp(ts(j1)*y)
+            ww1m(j1) = 1/ww1p(j1)
+            ww2m(j1) = 1/ww2p(j1)
             ww1p(nn/2+j1) = dconjg(ww1p(j1))
             ww2p(nn/2+j1) = dconjg(ww2p(j1))
             ww1m(nn/2+j1) = dconjg(ww1m(j1))
@@ -435,7 +435,7 @@ ccc         write(6,*) 'wtall ',wtall(j)
          enddo
 c
          do ind = 1,nd
-            pot(ind,itarg) = pot(ind,itarg)+dreal(sumz(ind))/2
+            pot(ind,itarg) = pot(ind,itarg)+dble(sumz(ind))/2
          enddo
       enddo
       return
