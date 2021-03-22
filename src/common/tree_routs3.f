@@ -6,6 +6,22 @@ c
 c
 c
 c
+c    - itree: integer(ltree)
+c        tree info
+c    - iptr: integer(8)
+c        * iptr(1) - laddr
+c        * iptr(2) - ilevel
+c        * iptr(3) - iparent
+c        * iptr(4) - nchild
+c        * iptr(5) - ichild
+c        * iptr(6) - ncoll
+c        * iptr(7) - coll
+c        * iptr(8) - ltree
+c    - centers: double precision (2,nboxes)
+c        xy coordinates of box centers in the oct tree
+c    - boxsize: double precision (0:nlevels)
+c        size of box at each of the levels
+      
       subroutine tree_refine_boxes(irefinebox,nboxes,
      1  ifirstbox,nbloc,centers,bs,nbctr,nlctr,
      2  ilevel,iparent,nchild,ichild)
@@ -99,7 +115,7 @@ c
 
       subroutine computecoll(nlevels,nboxes,laddr,boxsize,
      1                       centers,iparent,nchild,ichild,iper,
-     2                       nnbors,nbors)
+     2                       ngrid,nnbors,nbors)
 
 c     This subroutine computes the colleagues for an adaptive
 c     pruned tree. box j is a colleague of box i, if they share a
@@ -140,6 +156,10 @@ c     iper        in: integer
 c                 flag for periodic implementations. 
 c                 Currently not used. Feature under construction.
 c
+c     ngrid       in: integer
+c                 number of grid boxes in each dimension at the root
+c                level
+c
 c----------------------------------------------------------------
 c     OUTPUT
 c     nnbors      out: integer(nboxes)
@@ -159,15 +179,36 @@ c---------------------------------------------------------------
       integer iparent(nboxes), nchild(nboxes), ichild(4,nboxes)
       integer nnbors(nboxes)
       integer nbors(9,nboxes)
+      integer ngrid,igrid,jgrid
 
 c     Temp variables
       integer ilev,ibox,jbox,kbox,dad
       integer i,j,ifirstbox,ilastbox
 
-
 c     Setting parameters for level = 0
-      nnbors(1) = 1
-      nbors(1,1) = 1
+      do jgrid = 1,ngrid
+        do igrid = 1,ngrid
+          ibox = (jgrid-1)*ngrid + igrid
+          nnbors(ibox) = 0
+          do j=1,9
+            nbors(j,ibox) = -1
+          enddo
+          
+          do j=jgrid-1,jgrid+1
+            if(j.le.0.or.j.gt.ngrid) goto 1121
+            do i=igrid-1,igrid+1
+              if(i.le.0.or.i.gt.ngrid) goto 1111
+              jbox = (j-1)*ngrid + i
+              nnbors(ibox) = nnbors(ibox)+1
+              nbors(nnbors(ibox),ibox) = jbox
+ 1111       continue            
+            enddo
+ 1121       continue            
+          enddo
+        enddo
+      enddo
+
+
       do ilev = 1,nlevels
 c        Find the first and the last box at level ilev      
          ifirstbox = laddr(1,ilev)
@@ -485,7 +526,7 @@ c
 
       subroutine computelists(nlevels,nboxes,itree,ltree,
      1            iptr,centers,
-     2            boxsize,iper,mnlist1,nlist1,list1,
+     2            boxsize,iper,ngrid,mnlist1,nlist1,list1,
      3            mnlist2,nlist2,list2,
      4            mnlist3,nlist3,list3,
      5            mnlist4,nlist4,list4)
@@ -567,7 +608,7 @@ c                 list4(j,i) is the box id of the jth box in
 c                 list4 of box i
 c---------------------------------------------------------------
       implicit none
-      integer nlevels,nboxes,ltree
+      integer nlevels,nboxes,ltree,ngrid,jgrid,igrid
       integer iper
       integer itree(ltree),iptr(8)
       real *8 boxsize(0:nlevels)
@@ -592,20 +633,40 @@ c     Temp variables
 
 
 c     Setting parameters for level = 0
-      if(itree(iptr(4)).eq.0) then
-         nlist1(1) = 1 
-         list1(1,1) = 1
-      else
-         nlist1(1) = 0
-      endif
-      nlist2(1) = 0
-      nlist3(1) = 0
-      nlist4(1) = 0
 
-      
+      do jgrid=1,ngrid
+        do igrid=1,ngrid
+          ibox = (jgrid-1)*ngrid + igrid
+          do j=jgrid-2,jgrid+2
+            if(j.le.0.or.j.gt.ngrid) goto 1121
+            if(abs(j-jgrid).le.1) goto 1121
+            do i=igrid-2,igrid+2
+              if(i.le.0.or.i.gt.ngrid) goto 1111
+              if(abs(i-igrid).le.0) goto 1111
 
+              jbox = (j-1)*ngrid + i
+              nlist2(ibox) = nlist2(ibox) + 1
+              list2(nlist2(ibox),ibox) = jbox
+ 1111       continue            
+            enddo
+ 1121       continue            
+          enddo
 
-
+          if(itree(iptr(4)+ibox-1).eq.0) then
+            do j=jgrid-1,jgrid+1
+              if(j.le.0.or.j.gt.ngrid) goto 2232
+              do i=igrid-1,igrid+1
+                if(i.le.0.or.i.gt.ngrid) goto 2222
+                jbox = (j-1)*ngrid  +i
+                nlist1(ibox) = nlist1(ibox) + 1
+                list1(nlist1(ibox),ibox) = jbox
+ 2222         continue            
+              enddo
+ 2232         continue            
+            enddo
+          endif
+        enddo
+      enddo
 
 
       do ilev = 1,nlevels
@@ -708,4 +769,281 @@ c     End of looping over levels
 
       return
       end
+c
+c
+c
+c
+c
+c
+      subroutine gt2d_computemnlists(nlevels,nboxes,itree,ltree,
+     1   iptr,centers,
+     1   boxsize,iper,mnlistsoe,mnlistsx)
+c
+c     determine maximum number of elements in listsoe and listsx
+c
+c     NOTE in 2D: we use max values
+c
+      implicit real *8 (a-h,o-z)
+      integer ltree
+      integer nlevels,nboxes,itree(ltree),iptr(8)
+      real *8 centers(2,nboxes),boxsize(0:nlevels)
+      integer mnlistsoe,mnlistsx
 
+      mnlistsoe = 2**(nlevels+1)-1
+      mnlistsx = 2**nlevels
+
+      return
+      end
+c
+c
+c
+c
+c
+      subroutine gt2d_computelists_slow(nlevels,npwlevel,nboxes,
+     1    itree,ltree,iptr,centers,boxsize,laddr,
+     2    mnlistsoe,nlistsoe,listsoe,
+     3    mnlistsx, nlistsx, listsx)
+c     this subroutine returns lists of various types of SOE and SOE/X boxes
+c
+c     input parameters:
+c
+c     nlevels = number of levels, level 0 contains boxes of size 6\sqrt{delta}
+c     npwlevel   = recursive SOE picture stops at the level npwlevel
+c     nboxes = total number of boxes in the tree
+c     itree - laddr: tree stuff
+c
+c     mnlistsoe = maximum number of a particular type of SOE expansions
+c     mnlistsx = maximum number of a particular type of SOE/X expansions
+c      
+c     output parameters:
+c
+c     nlistsoe (0:3,nboxes) = contains the number of boxes for each particular
+c                             type of SOE expansions for each box
+c     nlistsx (0:3,nboxes) = contains the number of boxes for each particular
+c                            type of SOE/X expansions
+c
+c     listsoe (mnlistsoe,0:3,nboxes) = contains the box ID for each particular
+c                             type of SOE expansions for each box
+c
+c     listsx (mnlistsx,0:3,nboxes) = contains the box ID for each particular 
+c                            type of SOE/X expansions
+c      
+c
+C     SOE expansion type index: 0-pp, 1-pm, 2-mp, 3-mm
+c      
+c
+c     SOE/X expansion type index: 0-px, 1-mx, 2-xp, 3-xm
+c                                       
+c      
+      implicit real *8 (a-h,o-z)
+      integer nlevels,nboxes,ltree
+      integer itree(ltree),iptr(8),laddr(2,0:nlevels)
+      real *8 centers(2,nboxes),boxsize(0:nlevels)
+      integer mnlistsoe,mnlistsx
+      integer nlistsoe(0:3,nboxes), listsoe(mnlistsoe,0:3,nboxes)
+      integer nlistsx (0:3,nboxes), listsx (mnlistsx,0:3,nboxes)
+
+      integer, allocatable :: iboxlist(:,:),nproc(:),idad(:)
+      
+      integer ibox
+
+      allocate(iboxlist(9*2**(nlevels+1),0:nlevels))
+      allocate(nproc(0:nlevels),idad(0:nlevels))
+      
+      do ibox=1,nboxes
+        do j=0,3
+          nlistsoe(j,ibox)=0
+        enddo
+      enddo
+      
+      do ibox=1,nboxes
+        do j=0,3
+          nlistsx(j,ibox)=0
+        enddo
+      enddo
+      
+      do ilev=0,nlevels
+        bs=boxsize(ilev)
+        do ibox = laddr(1,ilev),laddr(2,ilev)
+          if (ilev .eq. 0) then
+            ncoll = itree(iptr(6)+ibox-1)
+            do i=1,ncoll
+              jbox = itree(iptr(7) + (ibox-1)*9+i-1)
+              ix = 1.05d0*(centers(1,jbox)-centers(1,ibox))/bs
+              iy = 1.05d0*(centers(2,jbox)-centers(2,ibox))/bs
+              if(ix.lt.0.and.iy.lt.0) then
+                 nlistsoe(0,ibox)=nlistsoe(0,ibox)+1
+                 listsoe(nlistsoe(0,ibox),0,ibox) = jbox
+              else if(ix.lt.0.and.iy.gt.0) then
+                 nlistsoe(1,ibox)=nlistsoe(1,ibox)+1
+                 listsoe(nlistsoe(1,ibox),1,ibox) = jbox
+              else if(ix.gt.0.and.iy.lt.0) then
+                 nlistsoe(2,ibox)=nlistsoe(2,ibox)+1
+                 listsoe(nlistsoe(2,ibox),2,ibox) = jbox
+              else if(ix.gt.0.and.iy.gt.0) then
+                 nlistsoe(3,ibox)=nlistsoe(3,ibox)+1
+                 listsoe(nlistsoe(3,ibox),3,ibox) = jbox
+              endif
+
+              if (npwlevel .eq. 0) then
+              if(ix.lt.0.and.iy.eq.0) then
+                 nlistsx(0,ibox)=nlistsx(0,ibox)+1
+                 listsx(nlistsx(0,ibox),0,ibox)=jbox
+              else if(ix.gt.0.and.iy.eq.0) then
+                 nlistsx(1,ibox)=nlistsx(1,ibox)+1
+                 listsx(nlistsx(1,ibox),1,ibox)=jbox
+              else if(ix.eq.0.and.iy.lt.0) then
+                 nlistsx(2,ibox)=nlistsx(2,ibox)+1
+                 listsx(nlistsx(2,ibox),2,ibox)=jbox
+              else if(ix.eq.0.and.iy.gt.0) then
+                 nlistsx(3,ibox)=nlistsx(3,ibox)+1
+                 listsx(nlistsx(3,ibox),3,ibox)=jbox
+              endif
+              endif
+            enddo
+          elseif (ilev .gt. 0 .and. ilev .le. npwlevel) then
+            idad(ilev)=ibox
+            do jlev=ilev-1,0,-1
+              idad(jlev) = itree(iptr(3)+idad(jlev+1)-1)
+            enddo
+
+            ncoll = itree(iptr(6)+idad(0)-1)
+            bs0=boxsize(0)
+            nproc(0) = 0
+            do i=1,ncoll
+              jbox = itree(iptr(7) + (idad(0)-1)*9+i-1)
+                  
+              ix = 1.05d0*(centers(1,jbox)-centers(1,idad(0)))/bs0
+              iy = 1.05d0*(centers(2,jbox)-centers(2,idad(0)))/bs0
+               
+              if(ix.lt.0.and.iy.lt.0) then
+              else if(ix.gt.0.and.iy.lt.0) then
+              else if(ix.gt.0.and.iy.gt.0) then
+              else if(ix.lt.0.and.iy.gt.0) then
+              else
+                 nproc(0) = nproc(0) + 1
+                 iboxlist(nproc(0),0) = jbox
+              endif
+            enddo
+
+            do jlev=1,ilev-1
+              nproc(jlev)=0
+              bsj=boxsize(jlev)
+              idadj=idad(jlev)
+              do i=1,nproc(jlev-1)
+                jbox = iboxlist(i,jlev-1)
+                nchild = itree(iptr(4)+jbox-1)
+                do j=1,nchild
+                  kbox = itree(iptr(5)+4*(jbox-1)+j-1)
+                        
+                  ix = 1.05d0*(centers(1,kbox)-centers(1,idadj))/bsj
+                  iy = 1.05d0*(centers(2,kbox)-centers(2,idadj))/bsj
+                        
+                  if(ix.lt.0.and.iy.lt.0) then
+                  else if(ix.gt.0.and.iy.lt.0) then
+                  else if(ix.gt.0.and.iy.gt.0) then
+                  else if(ix.lt.0.and.iy.gt.0) then
+                  else
+                     nproc(jlev) = nproc(jlev) + 1
+                     iboxlist(nproc(jlev),jlev) = kbox
+                  endif
+                enddo
+              enddo
+            enddo
+c
+c  end of processing things at the parent level
+c
+            do i=1,nproc(ilev-1)
+               kbox = iboxlist(i,ilev-1)
+               nchild = itree(iptr(4)+kbox-1)
+               do j=1,nchild
+                  jbox = itree(iptr(5)+4*(kbox-1)+j-1)
+
+                  ix = 1.05d0*(centers(1,jbox)-centers(1,ibox))/bs
+                  iy = 1.05d0*(centers(2,jbox)-centers(2,ibox))/bs
+                  
+                  if (abs(ix).le.2**ilev .and. abs(iy).le.2**ilev)then
+                     if(ix.lt.0.and.iy.lt.0) then
+                        nlistsoe(0,ibox)=nlistsoe(0,ibox)+1
+                        listsoe(nlistsoe(0,ibox),0,ibox) = jbox
+                     else if(ix.lt.0.and.iy.gt.0) then
+                        nlistsoe(1,ibox)=nlistsoe(1,ibox)+1
+                        listsoe(nlistsoe(1,ibox),1,ibox) = jbox
+                     else if(ix.gt.0.and.iy.lt.0) then
+                        nlistsoe(2,ibox)=nlistsoe(2,ibox)+1
+                        listsoe(nlistsoe(2,ibox),2,ibox) = jbox
+                     else if(ix.gt.0.and.iy.gt.0) then
+                        nlistsoe(3,ibox)=nlistsoe(3,ibox)+1
+                        listsoe(nlistsoe(3,ibox),3,ibox) = jbox
+                     endif
+                     
+                     if(ix.lt.0.and.iy.eq.0) then
+                        nlistsx(0,ibox)=nlistsx(0,ibox)+1
+                        listsx(nlistsx(0,ibox),0,ibox)=jbox
+                     else if(ix.gt.0.and.iy.eq.0) then
+                        nlistsx(1,ibox)=nlistsx(1,ibox)+1
+                        listsx(nlistsx(1,ibox),1,ibox)=jbox
+                     else if(ix.eq.0.and.iy.lt.0) then
+                        nlistsx(2,ibox)=nlistsx(2,ibox)+1
+                        listsx(nlistsx(2,ibox),2,ibox)=jbox
+                     else if(ix.eq.0.and.iy.gt.0) then
+                        nlistsx(3,ibox)=nlistsx(3,ibox)+1
+                        listsx(nlistsx(3,ibox),3,ibox)=jbox
+                     endif
+                  endif
+               enddo
+            enddo
+          elseif (ilev .gt. npwlevel) then
+            idad0 = itree(iptr(3)+ibox-1)
+            nchild = itree(iptr(4)+idad0-1)
+            do i=1,nchild
+               jbox = itree(iptr(5)+4*(idad0-1)+i-1)
+               ix = 1.05d0*(centers(1,jbox)-centers(1,ibox))/bs
+               iy = 1.05d0*(centers(2,jbox)-centers(2,ibox))/bs
+               if (jbox .ne. ibox) then
+               if(ix.lt.0.and.iy.lt.0) then
+                  nlistsoe(0,ibox)=nlistsoe(0,ibox)+1
+                  listsoe(nlistsoe(0,ibox),0,ibox) = jbox
+               else if(ix.lt.0.and.iy.gt.0) then
+                  nlistsoe(1,ibox)=nlistsoe(1,ibox)+1
+                  listsoe(nlistsoe(1,ibox),1,ibox) = jbox
+               else if(ix.gt.0.and.iy.lt.0) then
+                  nlistsoe(2,ibox)=nlistsoe(2,ibox)+1
+                  listsoe(nlistsoe(2,ibox),2,ibox) = jbox
+               else if(ix.gt.0.and.iy.gt.0) then
+                  nlistsoe(3,ibox)=nlistsoe(3,ibox)+1
+                  listsoe(nlistsoe(3,ibox),3,ibox) = jbox
+               endif
+               
+               if(ix.lt.0.and.iy.eq.0) then
+                  nlistsx(0,ibox)=nlistsx(0,ibox)+1
+                  listsx(nlistsx(0,ibox),0,ibox)=jbox
+               else if(ix.gt.0.and.iy.eq.0) then
+                  nlistsx(1,ibox)=nlistsx(1,ibox)+1
+                  listsx(nlistsx(1,ibox),1,ibox)=jbox
+               else if(ix.eq.0.and.iy.lt.0) then
+                  nlistsx(2,ibox)=nlistsx(2,ibox)+1
+                  listsx(nlistsx(2,ibox),2,ibox)=jbox
+               else if(ix.eq.0.and.iy.gt.0) then
+                  nlistsx(3,ibox)=nlistsx(3,ibox)+1
+                  listsx(nlistsx(3,ibox),3,ibox)=jbox
+               endif
+               endif
+            enddo
+               
+c         end of ilev if statement
+          endif
+cccc          write(13,*) ilev, nlistsx(0,ibox),nlistsx(1,ibox),
+cccc     1        nlistsx(2,ibox),nlistsx(3,ibox)
+c       end of ibox do loop
+        enddo
+c     end of ilev do loop
+      enddo
+
+      return
+      end
+c
+c
+c
+c
+c

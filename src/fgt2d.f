@@ -66,7 +66,7 @@ cc      calling sequence variables
 c 
       integer nd
       real *8 omp_get_wtime
-      real *8 eps,delta,bgf,bsize
+      real *8 eps,delta,bgf,bsize,bs0
       integer ns,nt,ntermsh,nlocal,npw,nsoe
       real *8 sources(2,ns),targ(2,nt)
       real *8 rnormal(2,ns)
@@ -83,7 +83,7 @@ c
       integer iper,nlmin,nlmax,ifunif,ngpl,nlgf,ngrid
       real *8, allocatable :: tcenters(:,:),boxsize(:)
       integer idivflag,nlevels,nboxes,ndiv,npwlevel
-      integer ltree
+      integer ltree,levcut
 
 c
 cc     sorted arrays
@@ -157,9 +157,13 @@ c     nlmax is the number of levels, either 2 or 3
       nlmax = 1
       if (ns/(ngrid*ngrid*16) .gt. 120) nlmax=3
 c      
-      call pts_tree_mem(sources,ns,targ,nt,idivflag,ndiv,ngrid,nlmax,
-     1  ifunif,iper,nlevels,nboxes,ltree)
+      call pts_tree_mem(delta,eps,sources,ns,targ,nt,idivflag,
+     1  ndiv,nlmin,iper,nlevels,nboxes,ltree,levcut,bs0)
 
+      call g2dterms(2,bs0,delta,eps,nlocal)
+
+      stop
+      
 c     setting npwlevel = 0 goes back to Leslie's picture
       npwlevel = nlevels
       if (nlevels .eq. 3) npwlevel=2
@@ -178,19 +182,20 @@ c
 c
 c     call the tree code
 c
-      call pts_tree_build(sources,ns,targ,nt,idivflag,ndiv,ngrid,nlmax,
-     1  ifunif,iper,nlevels,nboxes,ltree,itree,iptr,tcenters,boxsize)
+      call pts_tree_build(sources,ns,targ,nt,idivflag,ndiv,nlmin,
+     1    levcut,iper,nlevels,nboxes,
+     2    ltree,itree,iptr,tcenters,boxsize)
       write(6,*) ' boxsize',boxsize(0)
 
       allocate(isrc(ns),isrcse(2,nboxes))
       allocate(itarg(nt),itargse(2,nboxes))
 
       call pts_tree_sort(ns,sources,itree,ltree,nboxes,nlevels,iptr,
-     1   tcenters,ngrid,boxsize,isrc,isrcse)
+     1   tcenters,isrc,isrcse)
 ccc      write(6,*)' isrcse',isrcse
 
       call pts_tree_sort(nt,targ,itree,ltree,nboxes,nlevels,iptr,
-     1   tcenters,ngrid,boxsize,itarg,itargse)
+     1   tcenters,itarg,itargse)
 ccc      write(6,*)' itargse',itargse
       allocate(sourcesort(2,ns))
       allocate(targsort(2,nt))
@@ -1601,3 +1606,87 @@ C$OMP END PARALLEL DO
       return
       end
 c----------------------------------------------------------------     
+c
+c
+c
+c
+      subroutine fgt2d_large_delta(nd,delta,eps,ns,sources,
+     1            ifcharge,charge,ifdipole,rnormal,dipstr,iper,
+     2            ifpgh,pot,grad,hess,nt,targ,
+     3            ifpghtarg,pottarg,gradtarg,hesstarg)
+c----------------------------------------------
+c   INPUT PARAMETERS:
+c   nd            : number of FGTs (same source and target locations, 
+c                   different charge, dipole strengths)
+c   delta         : Gaussian variance 
+c   eps           : precision requested
+c   ns            : number of sources
+c   sources(2,ns) : source locations
+c   ifcharge      : flag for including charge interactions
+c                   charge interactions included if ifcharge =1
+c                   not included otherwise
+c   charge(nd,ns) : charge strengths
+c   ifdipole      : flag for including dipole interactions
+c                   dipole interactions included if ifcharge =1
+c                   not included otherwise
+c   rnormal(2,ns) : dipole directions
+c   dipstr(nd,ns) : dipole strengths
+c   iper          : flag for periodic implmentations. Currently unused
+c   ifpgh         : flag for computing pot/grad/hess
+c                   ifpgh = 1, only potential is computed
+c                   ifpgh = 2, potential and gradient are computed
+c                   ifpgh = 3, potential, gradient, and hessian 
+c                   are computed
+c   nt            : number of targets
+c   targ(2,nt)    : target locations
+c   ifpghtarg     : flag for computing pottarg/gradtarg/hesstarg
+c                   ifpghtarg = 1, only potential is computed at targets
+c                   ifpghtarg = 2, potential and gradient are 
+c                   computed at targets
+c                   ifpghtarg = 3, potential, gradient, and hessian are 
+c                   computed at targets
+c
+c   OUTPUT PARAMETERS
+c   pot(nd,*)       : potential at the source locations
+c   grad(nd,2,*)    : gradients at the source locations
+c   hess(nd,3,*)    : hessian at the source locations
+c   pottarg(nd,*)   : potential at the target locations
+c   gradtarg(nd,2,*): gradient at the target locations
+c   hesstarg(nd,3,*): hessian at the target locations
+c
+      implicit none
+c
+cc      calling sequence variables
+c 
+      integer nd
+      integer iper,ifcharge,ifdipole
+      integer ifpgh,ifpghtarg
+
+      real *8 omp_get_wtime
+      real *8 eps,delta,bgf,bsize
+      real *8 sources(2,ns),targ(2,nt)
+      real *8 rnormal(2,ns)
+      real *8 charge(nd,*),dipstr(nd,*)
+
+      real *8 pot(nd,*),grad(nd,2,*),hess(nd,3,*)
+      real *8 pottarg(nd,*),gradtarg(nd,2,*),hesstarg(nd,3,*)
+
+
+      real *8, allocatable :: lexp(:,:)
+c
+cc      temporary variables
+c
+      integer i,ilev,lmptmp,idim,ifprint,ier
+      integer ns,nt,ntermsh,nlocal,npw,nsoe
+      real *8 time1,time2,pi,done
+
+
+
+      
+
+      return
+      end
+c
+c
+c
+c

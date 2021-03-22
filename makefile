@@ -63,12 +63,13 @@ COMOBJS = $(COM)/prini_new.o \
 	$(COM)/sparse_reps.o \
 	$(COM)/cumsum.o \
 	$(COM)/fmmcommon2d.o \
-	$(COM)/pts_tree2d3.o \
-	$(COM)/tree_routs4.o 
+	$(COM)/pts_tree2d4.o \
+	$(COM)/tree_routs3.o 
 
 # Gauss transform objects
 GAUSS = src
 GOBJS = $(GAUSS)/fgt2d.o \
+	$(GAUSS)/g2dterms.o \
 	$(GAUSS)/g2ddirect.o \
 	$(GAUSS)/g2dhlall.o \
 	$(GAUSS)/g2dsoeall.o \
