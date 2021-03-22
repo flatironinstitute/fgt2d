@@ -54,7 +54,7 @@ c
       bb = 1.0d0/(2.0d0**6)
       delta = bb*bb/(1.5*1.5)/16
 cccc      delta = 0.1*delta
-      delta = 5.8d-1/4.0d0**(-1)
+      delta = 5.3d-1/4.0d0**(0)
       
       call prin2(' delta = *',delta,1)
       call prinf_long(' nsrc = *',nsrc,1)

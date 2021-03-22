@@ -112,7 +112,7 @@ c
       integer i,ilev,lmptmp,idim
       integer ifcharge,ifdipole
       integer ifpgh,ifpghtarg,ifprint,ier
-      real *8 time1,time2,pi,done
+      real *8 time1,time2,pi,done,pmax
 
       done = 1
       pi = atan(done)*4.0d0
@@ -160,8 +160,10 @@ c
       call pts_tree_mem(delta,eps,sources,ns,targ,nt,idivflag,
      1  ndiv,nlmin,iper,nlevels,nboxes,ltree,levcut,bs0)
 
-      call g2dterms(2,bs0,delta,eps,nlocal)
+      call g2dhlterms(2,bs0,delta,eps,nlocal)
 
+      call g2dpwterms(bs0,delta,eps,pmax,npw)
+      
       stop
       
 c     setting npwlevel = 0 goes back to Leslie's picture

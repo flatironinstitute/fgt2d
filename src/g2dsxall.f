@@ -252,10 +252,11 @@ C
 
       pmax = 10.6d0
       pi = 4.0d0*datan(1.0d0)
-      w = pmax/(2*2.0d0*npw*dsqrt(pi))
+      h = pmax/npw
+      w = h/(2.0d0*dsqrt(pi))
       do j =-npw,npw
-         ts(j) = j*pmax/npw
-         ws(j) = 2*w*dexp(-ts(j)*ts(j)/4)
+         ts(j) = j*h
+         ws(j) = w*dexp(-ts(j)*ts(j)/4)
       enddo
 c
       return
