@@ -46,15 +46,19 @@ c
 
       done = 1
       pi = atan(done)*4
-
+      
       nsrc = 1 000 000
       ntarg = nsrc
       nd = 1
       delta = 5.0d-2
       bb = 1.0d0/(2.0d0**6)
-      delta = bb*bb/(1.5*1.5)/16
-cccc      delta = 0.1*delta
-      delta = 5.3d-1/4.0d0**(0)
+      
+c      
+c     n = 1,2,3 bad cases
+c      
+      n = 1
+      delta = bb*bb/(1.5*1.5)*4.0d0**n
+
       
       call prin2(' delta = *',delta,1)
       call prinf_long(' nsrc = *',nsrc,1)
@@ -108,9 +112,9 @@ c
       call dzero(pottargex,ntt)
 
       ifcharge = 1
-      ifdipole = 1
-      ifpgh = 2
-      ifpghtarg = 3
+      ifdipole = 0
+      ifpgh = 1
+      ifpghtarg = 0
       call prinf(' ifcharge is *',ifcharge,1)
       call prinf(' ifdipole is *',ifdipole,1)
       call prinf(' ifpgh is *',ifpgh,1)
@@ -118,8 +122,8 @@ c
 
       iper = 0
       call fgt2d(nd,delta,eps,nsrc,sources,ifcharge,charges,
-     1            ifdipole,rnormal,dipstr,iper,ifpgh,pot,grad,hess,
-     2            ntarg,targ,ifpghtarg,pottarg,gradtarg,
+     1    ifdipole,rnormal,dipstr,iper,ifpgh,pot,grad,hess,
+     2    ntarg,targ,ifpghtarg,pottarg,gradtarg,
      3    hesstarg)
 
 cccc      write(6,*) 'pot is',(pot(i),i=1,nts)

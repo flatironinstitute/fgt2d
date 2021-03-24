@@ -59,7 +59,7 @@ c---------------------------------------------------------------------
       real *8 pot(nd)
       real *8 charge(nd,ns)
 c
-      dmax=log(1/eps)*delta
+      dmax=log(1.0d0/eps)*delta
       
       do i = 1,ns
          xdiff=targ(1)-sources(1,i)
@@ -113,7 +113,7 @@ c---------------------------------------------------------------------
       real *8 dx,dy,rinc,rfac
       real *8 charge(nd,ns)
 c
-      dmax=log(1/eps)*delta
+      dmax=log(1.0d0/eps)*delta
       rfac=-2.0d0/delta
       
       do i = 1,ns
@@ -179,7 +179,7 @@ c---------------------------------------------------------------------
       real *8 rtmp,dx,dy,rinc,dxx,dxy,dyy,rfac
       real *8 charge(nd,ns)
 c
-      dmax=log(1/eps)*delta
+      dmax=log(1.0d0/eps)*delta
       rfac = -2.0d0/delta
       
       do i = 1,ns
@@ -246,7 +246,7 @@ c---------------------------------------------------------------------
       real *8 pot(nd)
       real *8 dipstr(nd,ns)
 c
-      dmax=log(1/eps)*delta
+      dmax=log(1.0d0/eps)*delta
       rfac = 2.0d0/delta
       
       do i = 1,ns
@@ -305,7 +305,7 @@ c---------------------------------------------------------------------
       real *8 pot(nd),grad(nd,2),eps,dmax
       real *8 dipstr(nd,ns)
 c
-      dmax=log(1/eps)*delta
+      dmax=log(1.0d0/eps)*delta
       rfac = 2.0d0/delta
       
       do i = 1,ns
@@ -379,7 +379,7 @@ c---------------------------------------------------------------------
       real *8 dipstr(nd,ns)
 
 c
-      dmax=log(1/eps)*delta
+      dmax=log(1.0d0/eps)*delta
       rfac = 2.0d0/delta
       
       do i = 1,ns
@@ -452,7 +452,7 @@ c---------------------------------------------------------------------
       real *8 charge(nd,ns),dipstr(nd,ns)
 
 c
-      dmax=log(1/eps)*delta
+      dmax=log(1.0d0/eps)*delta
       rfac = 2.0d0/delta
       
       do i = 1,ns
@@ -520,7 +520,7 @@ c---------------------------------------------------------------------
       real *8 charge(nd,ns),dipstr(nd,ns)
 
 c
-      dmax=log(1/eps)*delta
+      dmax=log(1.0d0/eps)*delta
       rfac = -2.0d0/delta
       
       do i = 1,ns
@@ -604,7 +604,8 @@ c---------------------------------------------------------------------
 
 
 c
-      dmax=log(1/eps)*delta
+      dmax=log(1.0d0/eps)*delta
+cccc      call prin2('dmax=*',dmax,1)
       rfac = -2.0d0/delta
 
       do i = 1,ns

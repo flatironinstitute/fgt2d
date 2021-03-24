@@ -686,11 +686,14 @@ c
          enddo
 
          do ind=1,nd
+            r1 = rnormal(1,i)*dipstr(ind,i)
+            r2 = rnormal(2,i)*dipstr(ind,i)
             do j1=0,nlocal
+               ry1 = hexpy(j1)*r1
+               ry2 = dhexpy(j1)*r2
                do j2=0,nlocal
                   local(j2,j1,ind) = local(j2,j1,ind)+
-     1          (dhexpx(j2)*hexpy(j1)*rnormal(1,i)+
-     2           hexpx(j2)*dhexpy(j1)*rnormal(2,i))*dipstr(ind,i) 
+     1                dhexpx(j2)*ry1+hexpx(j2)*ry2
                enddo
             enddo
             
@@ -761,14 +764,16 @@ c
 
          do ind=1,nd
             chg=charge(ind,i)
+            r1 = rnormal(1,i)*dipstr(ind,i)
+            r2 = rnormal(2,i)*dipstr(ind,i)
+            
             do j1=0,nlocal
                ytmp=chg*hexpy(j1)
+               dy1 = hexpy(j1)*r1
+               dy2 = dhexpy(j1)*r2
                do j2=0,nlocal
                   local(j2,j1,ind) = local(j2,j1,ind)+
-     1          (dhexpx(j2)*hexpy(j1)*rnormal(1,i)+
-     2           hexpx(j2)*dhexpy(j1)*rnormal(2,i))*dipstr(ind,i) 
-                  local(j2,j1,ind) = local(j2,j1,ind)
-     1                +ytmp*hexpx(j2)
+     1                dhexpx(j2)*dy1+hexpx(j2)*dy2+ytmp*hexpx(j2)
                enddo
             enddo
             
@@ -1150,8 +1155,8 @@ C     soeall        = all four (unrolled) SOE expansions are incremented
 c                     in the order: soepp,soepm,soemp,soemm
 C      
       implicit real*8 (a-h,o-z)
-      complex *16 h2s(0:ntermsh,nsoe)
-      real *8 h2x(0:ntermsh,-npw:npw)
+      complex *16 h2s(nsoe,0:ntermsh)
+      real *8 h2x(-npw:npw,0:ntermsh)
       real *8 hexp(0:ntermsh,0:ntermsh,nd)
       complex *16 sxall(4*(2*npw+1)*nsoe/2,nd)
       complex *16 soeall(4*nsoe*nsoe/2,nd)
@@ -1184,12 +1189,12 @@ C
                mo=0
                
                do k=0,ntermsh,2
-                  pe=pe+h2s(k,j1)*hexp(k,j2,ind)
-                  me=me+h2s(k,j1)*hexp(j2,k,ind)                  
+                  pe=pe+h2s(j1,k)*hexp(k,j2,ind)
+                  me=me+h2s(j1,k)*hexp(j2,k,ind)                  
                enddo
                do k=1,ntermsh,2
-                  po=po+h2s(k,j1)*hexp(k,j2,ind)
-                  mo=mo+h2s(k,j1)*hexp(j2,k,ind)                  
+                  po=po+h2s(j1,k)*hexp(k,j2,ind)
+                  mo=mo+h2s(j1,k)*hexp(j2,k,ind)                  
                enddo
                ph(j2,j1)=pe+po
                mh(j2,j1)=pe-po
@@ -1216,12 +1221,12 @@ C
                mo=0
                
                do k=0,ntermsh,2
-                  pe=pe+h2s(k,j1)*hp(k,j2)
-                  me=me+h2s(k,j1)*hm(k,j2)
+                  pe=pe+h2s(j1,k)*hp(k,j2)
+                  me=me+h2s(j1,k)*hm(k,j2)
                enddo
                do k=1,ntermsh,2
-                  po=po+h2s(k,j1)*hp(k,j2)
-                  mo=mo+h2s(k,j1)*hm(k,j2)                  
+                  po=po+h2s(j1,k)*hp(k,j2)
+                  mo=mo+h2s(j1,k)*hm(k,j2)                  
                enddo
                soeall(j,ind) = soeall(j,ind) + pe+po
                soeall(nexp+j,ind) = soeall(nexp+j,ind)+me+mo
@@ -1245,28 +1250,28 @@ C
 c     use real h2x translation matrix
 c     performance actually degraded due to slower memory access 
                do k=0,ntermsh,4
-                  px(0)=px(0)+h2x(k,j2)*ph(k,j1)
-                  mx(0)=mx(0)+h2x(k,j2)*mh(k,j1)
-                  xp(0)=xp(0)+h2x(k,j2)*hp(k,j1)
-                  xm(0)=xm(0)+h2x(k,j2)*hm(k,j1)
+                  px(0)=px(0)+h2x(j2,k)*ph(k,j1)
+                  mx(0)=mx(0)+h2x(j2,k)*mh(k,j1)
+                  xp(0)=xp(0)+h2x(j2,k)*hp(k,j1)
+                  xm(0)=xm(0)+h2x(j2,k)*hm(k,j1)
                enddo
                do k=1,ntermsh,4
-                  px(1)=px(1)+h2x(k,j2)*ph(k,j1)
-                  mx(1)=mx(1)+h2x(k,j2)*mh(k,j1)
-                  xp(1)=xp(1)+h2x(k,j2)*hp(k,j1)
-                  xm(1)=xm(1)+h2x(k,j2)*hm(k,j1)
+                  px(1)=px(1)+h2x(j2,k)*ph(k,j1)
+                  mx(1)=mx(1)+h2x(j2,k)*mh(k,j1)
+                  xp(1)=xp(1)+h2x(j2,k)*hp(k,j1)
+                  xm(1)=xm(1)+h2x(j2,k)*hm(k,j1)
                enddo
                do k=2,ntermsh,4
-                  px(2)=px(2)+h2x(k,j2)*ph(k,j1)
-                  mx(2)=mx(2)+h2x(k,j2)*mh(k,j1)
-                  xp(2)=xp(2)+h2x(k,j2)*hp(k,j1)
-                  xm(2)=xm(2)+h2x(k,j2)*hm(k,j1)
+                  px(2)=px(2)+h2x(j2,k)*ph(k,j1)
+                  mx(2)=mx(2)+h2x(j2,k)*mh(k,j1)
+                  xp(2)=xp(2)+h2x(j2,k)*hp(k,j1)
+                  xm(2)=xm(2)+h2x(j2,k)*hm(k,j1)
                enddo
                do k=3,ntermsh,4
-                  px(3)=px(3)+h2x(k,j2)*ph(k,j1)
-                  mx(3)=mx(3)+h2x(k,j2)*mh(k,j1)
-                  xp(3)=xp(3)+h2x(k,j2)*hp(k,j1)
-                  xm(3)=xm(3)+h2x(k,j2)*hm(k,j1)
+                  px(3)=px(3)+h2x(j2,k)*ph(k,j1)
+                  mx(3)=mx(3)+h2x(j2,k)*mh(k,j1)
+                  xp(3)=xp(3)+h2x(j2,k)*hp(k,j1)
+                  xm(3)=xm(3)+h2x(j2,k)*hm(k,j1)
                enddo
 
                pxe=px(0)-px(2)
@@ -1337,8 +1342,8 @@ C     soeall        = all four (unrolled) SOE expansions are incremented
 c                     in the order: soepp,soepm,soemp,soemm
 C      
       implicit real*8 (a-h,o-z)
-      complex *16 h2s(0:ntermsh,nsoe)
-      complex *16 h2x(0:ntermsh,-npw:npw)
+      complex *16 h2s(nsoe,0:ntermsh)
+      complex *16 h2x(-npw:npw,0:ntermsh)
       real *8 hexp(0:ntermsh,0:ntermsh,nd)
       complex *16 sxall(4*(2*npw+1)*nsoe/2,nd)
       complex *16 soeall(4*nsoe*nsoe/2,nd)
@@ -1377,12 +1382,12 @@ C
                mo=0
                
                do k=0,ntermsh,2
-                  pe=pe+h2s(k,j1)*hexp(k,j2,ind)
-                  me=me+h2s(k,j1)*hexp(j2,k,ind)                  
+                  pe=pe+h2s(j1,k)*hexp(k,j2,ind)
+                  me=me+h2s(j1,k)*hexp(j2,k,ind)                  
                enddo
                do k=1,ntermsh,2
-                  po=po+h2s(k,j1)*hexp(k,j2,ind)
-                  mo=mo+h2s(k,j1)*hexp(j2,k,ind)                  
+                  po=po+h2s(j1,k)*hexp(k,j2,ind)
+                  mo=mo+h2s(j1,k)*hexp(j2,k,ind)                  
                enddo
                ph(j2,j1)=pe+po
                mh(j2,j1)=pe-po
@@ -1409,12 +1414,12 @@ C
                mo=0
                
                do k=0,ntermsh,2
-                  pe=pe+h2s(k,j1)*hp(k,j2)
-                  me=me+h2s(k,j1)*hm(k,j2)
+                  pe=pe+h2s(j1,k)*hp(k,j2)
+                  me=me+h2s(j1,k)*hm(k,j2)
                enddo
                do k=1,ntermsh,2
-                  po=po+h2s(k,j1)*hp(k,j2)
-                  mo=mo+h2s(k,j1)*hm(k,j2)                  
+                  po=po+h2s(j1,k)*hp(k,j2)
+                  mo=mo+h2s(j1,k)*hm(k,j2)                  
                enddo
                soeall(j,ind) = soeall(j,ind) + pe+po
                soeall(nexp+j,ind) = soeall(nexp+j,ind)+me+mo
@@ -1433,10 +1438,10 @@ cccc               xp=0
 cccc               xm=0
 cccc               
 cccc               do k=0,ntermsh
-cccc                  px=px+h2x(k,j2)*ph(k,j1)
-cccc                  mx=mx+h2x(k,j2)*mh(k,j1)
-cccc                  xp=xp+h2x(k,j2)*hp(k,j1)
-cccc                  xm=xm+h2x(k,j2)*hm(k,j1)
+cccc                  px=px+h2x(j2,k)*ph(k,j1)
+cccc                  mx=mx+h2x(j2,k)*mh(k,j1)
+cccc                  xp=xp+h2x(j2,k)*hp(k,j1)
+cccc                  xm=xm+h2x(j2,k)*hm(k,j1)
 cccc               enddo
 cccc
 cccc               sxall(j,ind) = sxall(j,ind)+ px
@@ -1456,17 +1461,17 @@ cccc            enddo
                xmo(j2)=0
 c              reduce one complex multiplication using the symmetry in h2x
                do k=0,ntermsh,2
-                  pxe(j2)=pxe(j2)+h2x(k,j2)*ph(k,j1)
-                  mxe(j2)=mxe(j2)+h2x(k,j2)*mh(k,j1)
-                  xpe(j2)=xpe(j2)+h2x(k,j2)*hp(k,j1)
-                  xme(j2)=xme(j2)+h2x(k,j2)*hm(k,j1)
+                  pxe(j2)=pxe(j2)+h2x(j2,k)*ph(k,j1)
+                  mxe(j2)=mxe(j2)+h2x(j2,k)*mh(k,j1)
+                  xpe(j2)=xpe(j2)+h2x(j2,k)*hp(k,j1)
+                  xme(j2)=xme(j2)+h2x(j2,k)*hm(k,j1)
                enddo
                
                do k=1,ntermsh,2
-                  pxo(j2)=pxo(j2)+h2x(k,j2)*ph(k,j1)
-                  mxo(j2)=mxo(j2)+h2x(k,j2)*mh(k,j1)
-                  xpo(j2)=xpo(j2)+h2x(k,j2)*hp(k,j1)
-                  xmo(j2)=xmo(j2)+h2x(k,j2)*hm(k,j1)
+                  pxo(j2)=pxo(j2)+h2x(j2,k)*ph(k,j1)
+                  mxo(j2)=mxo(j2)+h2x(j2,k)*mh(k,j1)
+                  xpo(j2)=xpo(j2)+h2x(j2,k)*hp(k,j1)
+                  xmo(j2)=xmo(j2)+h2x(j2,k)*hm(k,j1)
                enddo
 
                sxall(j,ind) = sxall(j,ind)
@@ -1852,7 +1857,7 @@ C     h2s           = translation matrix
 C
       implicit real*8 (a-h,o-z)
       complex *16 ws(*), ts(*)
-      complex *16 h2s(0:ntermsh,nsoe)
+      complex *16 h2s(nsoe,0:ntermsh)
       real *8 fac(0:100)
 
       fac(0)=1.0d0
@@ -1861,10 +1866,9 @@ C
 cccc         fac(i)=fac(i-1)/i
       enddo
 
-      
-      do i=1,nsoe
-         do j=0,ntermsh
-            h2s(j,i)=ws(i)*ts(i)**j*fac(j)
+      do j=0,ntermsh
+         do i=1,nsoe
+            h2s(i,j)=ws(i)*ts(i)**j*fac(j)
          enddo
       enddo
       
@@ -1892,7 +1896,7 @@ C     rh2x       = real translation matrix, i.e., i^j factor is left out.
 C
       implicit real*8 (a-h,o-z)
       real *8 ws(-npw:npw), ts(-npw:npw)
-      real *8 rh2x(0:ntermsh,-npw:npw)
+      real *8 rh2x(-npw:npw,0:ntermsh)
       real *8 fac(0:100)
 
       fac(0)=1.0d0
@@ -1901,9 +1905,9 @@ C
 cccc         fac(i)=fac(i-1)/i
       enddo
       
-      do i=-npw,npw
-         do j=0,ntermsh
-            rh2x(j,i)=ws(i)*(-ts(i))**j*fac(j)
+      do j=0,ntermsh
+         do i=-npw,npw
+            rh2x(i,j)=ws(i)*(-ts(i))**j*fac(j)
          enddo
       enddo
 
@@ -1931,7 +1935,7 @@ C     h2x       = translation matrices
 C
       implicit real*8 (a-h,o-z)
       real *8 ws(-npw:npw), ts(-npw:npw)
-      complex *16 h2x(0:ntermsh,-npw:npw)
+      complex *16 h2x(-npw:npw,0:ntermsh)
       real *8 fac(0:100)
       complex *16 eye
       
@@ -1943,9 +1947,9 @@ C
 cccc         fac(i)=fac(i-1)/i
       enddo
       
-      do i=-npw,npw
-         do j=0,ntermsh
-            h2x(j,i)=ws(i)*(-eye*ts(i))**j*fac(j)
+      do j=0,ntermsh
+         do i=-npw,npw
+            h2x(i,j)=ws(i)*(-eye*ts(i))**j*fac(j)
          enddo
       enddo
       

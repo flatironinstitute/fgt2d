@@ -243,17 +243,17 @@ C
 C get plane wave approximation nodes and weights
 C
 C*********************************************************************
-      subroutine get_pwnodes(npw,ws,ts)
+      subroutine get_pwnodes(pmax,npw,ws,ts)
 C
 C     Get planewave exp weights,nodes
 C
       implicit real *8 (a-h,o-z)
       real *8 ws(-npw:npw),ts(-npw:npw)
 
-      pmax = 10.6d0
       pi = 4.0d0*datan(1.0d0)
       h = pmax/npw
       w = h/(2.0d0*dsqrt(pi))
+
       do j =-npw,npw
          ts(j) = j*h
          ws(j) = w*dexp(-ts(j)*ts(j)/4)

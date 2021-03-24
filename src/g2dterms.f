@@ -76,7 +76,7 @@ c
          endif
       enddo
 
-      print *, p0, r*sqrt(2.0d0), nterms
+cccc      print *, p0, r*sqrt(2.0d0), nterms
       
       return
       end 
@@ -97,7 +97,7 @@ c     INPUT:
 c     eps: desired precision
 c    
 c     OUTPUT:
-c     nsoe: number of terms in Taylor/Hermite expansion
+c     nsoe: number of terms in the SOE expansion
 c      
       implicit real*8 (a-h,o-z)
 
@@ -181,9 +181,9 @@ c
 
       h = 2*pi/(rmax+d)
 
-      npw = nint(pmax/h)
+      npw = ceiling(pmax/h)
 
-      print *, h, pmax, pmax/h, npw
+cccc      print *, h, pmax, pmax/h, npw
       
       return
       end 

@@ -31,8 +31,10 @@ c
 c 
 
 
-      subroutine pts_tree_mem(delta,eps,src,ns,targ,nt,idivflag,
-     1    ndiv,nlmin,iper,nlevels,nboxes,ltree,levcut,bs0)
+      subroutine pts_tree_mem(src,ns,targ,nt,idivflag,
+     1    ndiv,nlmin,nlmax,iper,
+     2    ndiv0,levcut,bs0,cen0,
+     3    nlevels,nboxes,ltree)
 c
 c----------------------------------------
 c  get memory requirements for the tree
@@ -50,13 +52,26 @@ c          * idivflag = 1 -> subdivide on targets only
 c          * idivflag = 2 -> subdivide on max(sources+targets)
 c    - ndiv: integer
 c        subdivide if relevant number of particles
-c        per box is greater than ndiv
+c        per box is greater than ndiv for levels >= levcut
 c    - nlmin: integer
 c        minimum number of levels of uniform refinement.
 c        Note that empty boxes are not pruned along the way
+c    - nlmax: integer
+c        maximum number of levels.
 c    - iper: integer
 c        flag for periodic implementations. Currently unused.
 c        Feature under construction
+c    - ndiv0: integer
+c        subdivide if relevant number of particles
+c        per box is greater than ndiv0 for levels < levcut
+c     - levcut: integer
+c        the cutoff level 
+c     - bs0 : real
+c        side length of the bounding box
+c     - cen0(2) : center of the bounding box
+c        
+c
+c        
 c
 c        
 c  output parameters
@@ -66,18 +81,16 @@ c    - nboxes: integer
 c        number of boxes
 c    - ltree: integer
 c        length of tree
-c     - bs0 : real
-c        side length of the computational box
 c----------------------------------
 c
      
 
       implicit none
       integer nlevels,nboxes,ltree,idivflag
-      integer nlmin,iper
-      integer ns,nt,ndiv,levcut
+      integer nlmin,nlmax,iper
+      integer ns,nt,ndiv,levcut,ndiv0
       real *8 delta,eps,src(2,ns),targ(2,nt)
-
+      real *8 bs0,cen0(2)
 
       integer, allocatable :: laddr(:,:),ilevel(:),iparent(:),nchild(:)
       integer, allocatable :: ichild(:,:),ncoll(:),icoll(:,:)
@@ -90,7 +103,7 @@ c
      1    ichild2(:,:),isrcse2(:,:),itargse2(:,:)
       real *8, allocatable :: centers2(:,:)
 
-      integer nbmax,nlmax
+      integer nbmax
       integer i,itype,j
 
       real *8, allocatable :: centerstmp(:,:,:)
@@ -101,16 +114,14 @@ c
       integer nbloc,nbctr,nbadd,irefine,ilev,ifirstbox,ilastbox
       integer nbtot,iii
       integer ibox,nn,nss,ntt
-      real *8 sizey,bs0
+      real *8 sizey
 
       real *8 xmin,xmax,ymin,ymax
       real *8 dfac
 
       nbmax = 100000
-      nlmax = 51
 
       allocate(boxsize(0:nlmax))
-
       
       allocate(laddr(2,0:nlmax),ilevel(nbmax),iparent(nbmax))
       allocate(nchild(nbmax),ichild(4,nbmax))
@@ -121,12 +132,11 @@ c
 c
 c     step 1: find enclosing box
 c
-      call set_boxsize0(delta,eps,src,ns,targ,nt,levcut,bs0)
       
       boxsize(0) = bs0
-      print *, levcut, bs0
-      return
-      if (levcut .lt. -2) return
+
+      centers(1,1) = cen0(1)
+      centers(2,1) = cen0(2)
 
 c
 c      set tree info for level 0
@@ -139,9 +149,6 @@ c
       do i=1,4
         ichild(i,1) = -1
       enddo
-
-      centers(1,1) = (xmin+xmax)/2
-      centers(2,1) = (ymin+ymax)/2
 
       isrcse(1,1) = 1
       isrcse(2,1) = ns
@@ -184,7 +191,11 @@ c
             if(idivflag.eq.1) nn = ntt
             if(idivflag.eq.2) nn = max(ntt,nss)
 
-            if(nn.gt.ndiv) irefinebox(i) = 1
+            if (ilev .lt. levcut) then               
+               if(nn.gt.ndiv0) irefinebox(i) = 1
+            else
+               if(nn.gt.ndiv) irefinebox(i) = 1
+            endif
           enddo
         else
           do i=1,nbloc
@@ -350,8 +361,9 @@ c
 c
 
       subroutine pts_tree_build(src,ns,targ,nt,idivflag,ndiv,
-     1    nlmin,levcut,iper,nlevels,nboxes,
-     2    ltree,itree,iptr,centers,boxsize)
+     1    nlmin,iper,nlevels,nboxes,
+     2    ndiv0,levcut,bs0,cen0,
+     3    ltree,itree,iptr,centers,boxsize)
 c
 c
 c----------------------------------------
@@ -370,7 +382,7 @@ c          * idivflag = 1 -> subdivide on targets only
 c          * idivflag = 2 -> subdivide on max(sources+targets)
 c    - ndiv: integer
 c        subdivide if relevant number of particles
-c        per box is greater than ndiv
+c        per box is greater than ndiv for levels >= levcut
 c    - nlmin: integer
 c        minimum number of levels of uniform refinement.
 c        Note that empty boxes are not pruned along the way
@@ -382,7 +394,16 @@ c        number of levels
 c    - nboxes: integer
 c        number of boxes
 c    - ltree: integer
-c
+c    - ndiv0: integer
+c        subdivide if relevant number of particles
+c        per box is greater than ndiv0 for levels < levcut
+c     - levcut: integer
+c        the cutoff level 
+c     - bs0 : real
+c        side length of the bounding box
+c     - cen0(2) : center of the bounding box
+c     
+c     
 c  output:
 c    - itree: integer(ltree)
 c        tree info
@@ -403,10 +424,11 @@ c
 
       implicit none
       integer nlevels,nboxes,ltree,ns,nt,idivflag,ndiv
-      integer iper,nlmin,levcut
+      integer iper,nlmin,levcut,ndiv0
       integer iptr(8)
       integer itree(ltree),ier
       real *8 centers(2,nboxes),src(2,ns),targ(2,nt)
+      real *8 bs0,cen0(2)
       integer, allocatable :: irefinebox(:)
       real *8 boxsize(0:nlevels)
       integer, allocatable :: isrc(:),itarg(:),isrcse(:,:),itargse(:,:)
@@ -418,9 +440,6 @@ c
       real *8 ra
       integer j,nboxes0
       integer ibox,nn,nss,ntt
-
-      real *8 xmin,xmax,ymin,ymax,sizey
-
 c
       iptr(1) = 1
       iptr(2) = 2*(nlevels+1)+1
@@ -431,30 +450,10 @@ c
       iptr(7) = iptr(6) + nboxes
       iptr(8) = iptr(7) + 9*nboxes
 
-      xmin = src(1,1)
-      xmax = src(1,1)
-      ymin = src(2,1)
-      ymax = src(2,1)
+      boxsize(0) = bs0
 
-      do i=1,ns
-        if(src(1,i).lt.xmin) xmin = src(1,i)
-        if(src(1,i).gt.xmax) xmax = src(1,i)
-        if(src(2,i).lt.ymin) ymin = src(2,i)
-        if(src(2,i).gt.ymax) ymax = src(2,i)
-      enddo
-
-      do i=1,nt
-        if(targ(1,i).lt.xmin) xmin = targ(1,i)
-        if(targ(1,i).gt.xmax) xmax = targ(1,i)
-        if(targ(2,i).lt.ymin) ymin = targ(2,i)
-        if(targ(2,i).gt.ymax) ymax = targ(2,i)
-      enddo
-      boxsize(0) = xmax - xmin
-      sizey = ymax -ymin
-      if(sizey.gt.boxsize(0)) boxsize(0) = sizey
-
-      centers(1,1) = (xmin+xmax)/2
-      centers(2,1) = (ymin+ymax)/2
+      centers(1,1) = cen0(1)
+      centers(2,1) = cen0(2)
 
       allocate(isrc(ns),itarg(nt),isrcse(2,nboxes),itargse(2,nboxes))
 
@@ -516,7 +515,11 @@ c
             if(idivflag.eq.1) nn = ntt
             if(idivflag.eq.2) nn = max(ntt,nss)
 
-            if(nn.gt.ndiv) irefinebox(i) = 1
+            if (ilev .lt. levcut) then               
+               if(nn.gt.ndiv0) irefinebox(i) = 1
+            else
+               if(nn.gt.ndiv) irefinebox(i) = 1
+            endif
           enddo
         else
           do i=1,nbloc
@@ -1181,10 +1184,36 @@ c
 c
 c
 c
-      subroutine set_boxsize0(delta,eps,src,ns,targ,nt,levcut,bs0)
+      subroutine pts_tree_boxsize0(delta,eps,src,ns,targ,nt,
+     1    levcut,bs0,cen0)
+c      
+c     given a collection of sources and targs, this subroutine returns to the user 
+c     the cutoff lev, the side length and the center of the bounding box.
+c      
+c     
+c     input parameters:
+c     delta         : Gaussian variance 
+c     eps           : precision requested
+c     ns            : number of sources
+c     src(2,ns)     : source locations
+c     nt            : number of targets
+c     targ(2,nt)    : target locationsc     
+c      
+c      
+c     output parameters:
+c     cutlev : the cutoff level
+c              < 0 means that the bounding box size is less than the cutoff distance
+c              <= -3 means that the bounding box is so small as compared with the
+c                    Gaussian variance that there is no need to build the tree. In 
+c                    this case, the interactions will be computed by form local, then
+c                    evaluate local
+c     bs0 : the side length of the bounding box
+c     cen0(2) : the center of the bounding box
+c     
+c      
       implicit real *8 (a-h,o-z)
       integer ns,nt,levcut
-      real *8 src(2,ns),targ(2,nt),bs0
+      real *8 src(2,ns),targ(2,nt),bs0,cen0(2)
       
       xmin = src(1,1)
       xmax = src(1,1)
@@ -1207,18 +1236,21 @@ c
 
       bs0 = (xmax - xmin)
       sizey = (ymax -ymin)
+
+      cen0(1) = (xmin+xmax)/2
+      cen0(2) = (ymin+ymax)/2
+      
       if(sizey.gt.bs0) bs0 = sizey
 
-      dc = sqrt(delta*log(1/eps))
+      dc = sqrt(delta*log(1.0d0/eps))
 
       dl = log(bs0/dc)/log(2.0d0)
 
-      levcut = ceiling(dl)
+      levcut = floor(dl)
 
-      return
-      if (bs0 .lt. dc) return
-      
-      bs0 = (2**levcut)*dc
+cccc      if (bs0 .lt. dc) return
+cccc      
+cccc      bs0 = (2**levcut)*dc
 
       return
       end

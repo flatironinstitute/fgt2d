@@ -64,7 +64,7 @@ COMOBJS = $(COM)/prini_new.o \
 	$(COM)/cumsum.o \
 	$(COM)/fmmcommon2d.o \
 	$(COM)/pts_tree2d4.o \
-	$(COM)/tree_routs3.o 
+	$(COM)/tree_routs4.o 
 
 # Gauss transform objects
 GAUSS = src
