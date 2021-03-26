@@ -1374,7 +1374,7 @@ C
       implicit real *8 (a-h,o-z)
       real *8 boxsize
       complex *16, allocatable :: wexp(:,:)
-      complex *16 wshift(nsoe*nsoe/2,nmax**2)
+      complex *16 wshift(nsoe*nsoe/2,nmax*nmax)
       complex *16 ws(nsoe),ts(nsoe)
 C
       allocate(wexp(nsoe,nmax))

@@ -169,7 +169,7 @@ c     call the tree memory management
 c     code to determine number of boxes,
 c     number of levels and length of tree
 c
-      nlmax = npwlevel+4
+      nlmax = npwlevel + 4
       nlmin = 0
       call pts_tree_mem(sources,ns,targ,nt,idivflag,
      1    ndiv,nlmin,nlmax,iper,
@@ -337,9 +337,20 @@ c     compute the length of plane wave expansion
       
 c     compute the length of SOE expansion
       call g2dsoeterms(eps,nsoe)      
-      if (ifdipole.eq.1 .or. ifpgh.ge.2 .or. ifpghtarg.ge.2) then
-         if (nsoe .le. 12) nsoe = nsoe+2
+      if (ifdipole.eq.1 .or. ifpgh.eq.3 .or. ifpghtarg.eq.3) then
+         if (nsoe .le. 10) then
+            nsoe = nsoe+4
+         else
+            nsoe = 18
+         endif
+      elseif (ifdipole.eq.1 .or. ifpgh.eq.2 .or. ifpghtarg.eq.2) then
+         if (nsoe .le. 12) then
+            nsoe = nsoe+2
+         else
+            nsoe = 18
+         endif
       endif
+
 
       call prinf(' nlocal =*',nlocal,nlevels+1)
       call prinf(' ntermmax =*',ntermmax,1)

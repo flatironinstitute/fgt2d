@@ -56,7 +56,7 @@ c
 c      
 c     n = 1,2,3 bad cases
 c      
-      n = 3
+      n = 0
       delta = bb*bb/(1.5*1.5)*4.0d0**n
 
       
