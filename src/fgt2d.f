@@ -154,7 +154,7 @@ c
 c
       idivflag =0
 c     ndiv0 is the maximum number of points per box above the cutoff level
-c     it determines the speed of the algorithm when delta -> 0.
+c     it determines the speed of the algorithm when delta goes to zero.
       ndiv0 = 10
 c     ndiv is the maximum number of points per box at or below the cutoff level
 c     it's determined by numerical experiments on finding the crossover point
@@ -169,7 +169,7 @@ c     call the tree memory management
 c     code to determine number of boxes,
 c     number of levels and length of tree
 c
-      nlmax = npwlevel+5
+      nlmax = npwlevel+4
       nlmin = 0
       call pts_tree_mem(sources,ns,targ,nt,idivflag,
      1    ndiv,nlmin,nlmax,iper,
@@ -334,13 +334,13 @@ c
 c     compute the length of plane wave expansion
       bsize = bs0/(2.0d0**(max(npwlevel,0)))
       call g2dpwterms(bsize,delta,eps,pmax,npw)
-    
+      
 c     compute the length of SOE expansion
       call g2dsoeterms(eps,nsoe)      
       if (ifdipole.eq.1 .or. ifpgh.ge.2 .or. ifpghtarg.ge.2) then
          if (nsoe .le. 12) nsoe = nsoe+2
       endif
-      
+
       call prinf(' nlocal =*',nlocal,nlevels+1)
       call prinf(' ntermmax =*',ntermmax,1)
       call prin2(' pmax =*',pmax,1)
