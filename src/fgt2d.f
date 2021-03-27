@@ -738,8 +738,9 @@ c           Check if the current box is a nonempty leaf box
       do i=0,nlevels
          timelev(i) = 0
       enddo
-      
-      if (npwlevel .eq. nlevels) goto 1800
+
+c     direct evaluation if the cutoff level is >= the maximum level 
+      if (npwlevel .ge. nlevels) goto 1800
 
 
 
@@ -787,14 +788,6 @@ c     compute translation matrices for SOE and SOE/X expansions
      1           wsoeshiftall,ws,ts)
       call shiftsxall_translation_matrices(xmin2,npw,nsoehalf,nmax,
      1           wsxshiftall,ts,tx)
-      
-
-c     xmin is used in shiftsoe and shiftsx subroutines to
-c     determine the right translation matrices
-c      
-      xmin  = boxsize(nlevels)
-      xmin2 = xmin/2
-
 c
 c     1d translation matrices
 c
