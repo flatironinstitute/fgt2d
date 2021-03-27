@@ -61,7 +61,7 @@ c
 
       r = bsize/sqrt(2.0d0*delta)
 
-      p0 = ceiling(e1*r*r) + 1
+      p0 = int(e1*r*r) + 1
 
       
       rk = 1.09*(8*atan(1.0d0))**(-0.25d0)
@@ -181,7 +181,7 @@ c
 
       h = 2*pi/(rmax+d)
 
-      npw = ceiling(pmax/h)
+      npw = int(pmax/h)+1
 
 cccc      print *, h, pmax, pmax/h, npw
       

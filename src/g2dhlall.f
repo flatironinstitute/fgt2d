@@ -1806,11 +1806,11 @@ C     h2l        = translation matrix
 C
       implicit real*8 (a-h,o-z)
       real *8 h2l(0:ntermsh,0:nlocal)
-      real *8 fac(0:200),hexpx(0:200)
-      real *8, allocatable :: sqc(:,:)
+      real *8, allocatable :: sqc(:,:),fac(:),hexpx(:)
 
       ntot = ntermsh+nlocal
-      allocate(sqc(0:ntot,0:ntot))
+      allocate(sqc(0:ntot,0:ntot),fac(0:nlocal),hexpx(0:ntot+1))
+      
       call getsqrtbinomialcoeffs(ntot,sqc)
       
       fac(0)=1.0d0
@@ -1858,10 +1858,12 @@ C
       implicit real*8 (a-h,o-z)
       complex *16 ws(*), ts(*)
       complex *16 h2s(nsoe,0:ntermsh)
-      real *8 fac(0:100)
+      real *8, allocatable:: fac(:)
+
+      allocate(fac(0:ntermsh))
 
       fac(0)=1.0d0
-      do i=1,100
+      do i=1,ntermsh
          fac(i)=fac(i-1)/sqrt(dble(i))
 cccc         fac(i)=fac(i-1)/i
       enddo
@@ -1897,10 +1899,13 @@ C
       implicit real*8 (a-h,o-z)
       real *8 ws(-npw:npw), ts(-npw:npw)
       real *8 rh2x(-npw:npw,0:ntermsh)
-      real *8 fac(0:100)
+      real *8, allocatable:: fac(:)
+
+      allocate(fac(0:ntermsh))
+      
 
       fac(0)=1.0d0
-      do i=1,100
+      do i=1,ntermsh
          fac(i)=fac(i-1)/sqrt(dble(i))
 cccc         fac(i)=fac(i-1)/i
       enddo
@@ -1936,13 +1941,15 @@ C
       implicit real*8 (a-h,o-z)
       real *8 ws(-npw:npw), ts(-npw:npw)
       complex *16 h2x(-npw:npw,0:ntermsh)
-      real *8 fac(0:100)
+      real *8, allocatable:: fac(:)
       complex *16 eye
       
       eye = dcmplx(0,1)
+      
+      allocate(fac(0:ntermsh))
 
       fac(0)=1.0d0
-      do i=1,100
+      do i=1,ntermsh
          fac(i)=fac(i-1)/sqrt(dble(i))
 cccc         fac(i)=fac(i-1)/i
       enddo
@@ -1977,10 +1984,12 @@ C
       implicit real*8 (a-h,o-z)
       complex *16 ws(*), ts(*)
       complex *16 s2l(nsoe,0:nlocal)
-      real *8 fac(0:100)
+      real *8, allocatable:: fac(:)
 
+      allocate(fac(0:nlocal))
+      
       fac(0)=1.0d0
-      do i=1,100
+      do i=1,nlocal
          fac(i)=fac(i-1)*i
       enddo
       
@@ -2016,12 +2025,14 @@ C
       real *8 ws(-npw:npw), ts(-npw:npw)
       complex *16 x2l(-npw:npw,0:nlocal)
       complex *16 eye
-      real *8 fac(0:100)
+      real *8, allocatable:: fac(:)
+
+      allocate(fac(0:nlocal))
       
       eye = dcmplx(0,1)
       
       fac(0)=1.0d0
-      do i=1,100
+      do i=1,nlocal
          fac(i)=fac(i-1)*i
       enddo
       

@@ -1211,7 +1211,7 @@ c     bs0 : the side length of the bounding box
 c     cen0(2) : the center of the bounding box
 c     
 c      
-      implicit real *8 (a-h,o-z)
+      Implicit real *8 (a-h,o-z)
       integer ns,nt,levcut
       real *8 src(2,ns),targ(2,nt),bs0,cen0(2)
       
@@ -1246,11 +1246,9 @@ c
 
       dl = log(bs0/dc)/log(2.0d0)
 
-      levcut = floor(dl)
-cccc      levcut = int(dl)
+      levcut = int(dl)
 
 cccc      if (bs0 .lt. dc) return
-cccc      
 cccc      bs0 = (2**levcut)*dc
 
       return

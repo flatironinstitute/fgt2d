@@ -270,59 +270,79 @@ C
 C shift SOE/X expansions (mp to loc, mp to mp, loc to loc)
 C
 C*********************************************************************
-      subroutine shiftsx_translation_matrices(boxsize,npw,nsoe,nmax,
-     1              wshift,ws,ts)
+c
 C
-C     This subroutine computes the complex exponentials in the SOE/X translations.
 C
+c            
+      subroutine shiftsx_translation_matrices(xmin,npw,nns,nmax,
+     1              wshift,ts,tx)
+C
+C     This subroutine precomputes all translation matrices for all SOE/X
+C     expansions from child to parent or vice versa.
+C
+c     used in merge mp or split loc stage
+c      
 C     INPUT
 C
-c     nlevels    = number of levels in the uniform pruned tree
-c     boxsize    = scaled (by 1/sqrt(delta) size of the box at the finest level
-C     nsoe       = number of terms in SOE expansion
-c     npw        = plane wave expansion length
-C     nmax       = number of different translation lengths in the whole scheme 
-C     ws,ts      = SOE weights and nodes
-C
+c     nd      = vector length (for multiple charges at same locations)
+C     npw     = number of terms in plane wave exp
+C     nns    = number of SOE terms
+C     nmax    = number of different translation lengths in the whole scheme 
+C     ts      = SOE nodes
+C     tx      = X nodes
+c      
 C     OUTPUT:
 C
-C     wshift     = table of shift arrays for sx translations, which are used in 
-C                  mp to loc stage
-c      
-      implicit real *8 (a-h,o-z)
-      real *8 boxsize
-      complex *16, allocatable :: wexp(:,:)
-      complex *16 wshift((2*npw+1)*nsoe/2,nmax)
-      complex *16 ws(nsoe),ts(nsoe)
-      complex *16 ztmp
+C     wshift  = table of translation matrices for SOE/X shift used in
+c                merge mp and split loc stage
 C
-      allocate(wexp(nsoe,nmax))
+      implicit real *8 (a-h,o-z)
+      complex *16 ts(nns)
+      real *8 tx(-npw:npw)
       
-      do j1=1,nsoe
-         ztmp = cdexp(-ts(j1)*boxsize)
-         do j2=1,nmax
-            wexp(j1,j2) = ztmp
-            ztmp = ztmp*ztmp
+      complex *16 wshift((2*npw+1)*nns,0:nmax,-nmax:nmax)
+      
+      complex *16,allocatable:: wws(:,:)
+      complex *16,allocatable:: wwx(:,:)
+
+      complex *16 eye
+C
+      eye = dcmplx(0,1)
+      
+      allocate(wws(nns,0:nmax))
+      allocate(wwx(-npw:npw,-nmax:nmax))
+      
+      do j2=0,nmax
+         do j1=1,nns
+            wws(j1,j2)=exp(-ts(j1)*xmin*j2)
          enddo
       enddo
 
-     
-      do k=1,nmax
-         j=0
-         do j1=1,nsoe/2
-            do j2=-npw,npw
-               j=j+1
-               wshift(j,k)=wexp(j1,k)
-            enddo
+      do j2=-nmax,nmax
+         do j1=-npw,npw
+            wwx(j1,j2)=exp(eye*tx(j1)*xmin*j2)
          enddo
       enddo
-      
+
+      nexp=(2*npw+1)*nns
+      do m=0,nmax
+      do n=-nmax,nmax
+         j = 0
+         do j1=1,nns
+         do j2=-npw,npw
+            j = j+1
+            wshift(j,m,n) = wws(j1,m)*wwx(j2,n)
+         enddo
+         enddo
+      enddo
+      enddo
+c
       return
       end
-C      
-C      
-C      
-C      
+c
+c
+c
+c
       subroutine g2dshiftsx_vec(nd,npw,nns,sxall1,
      1              sxall2,wshift,isx)
 C
@@ -363,236 +383,73 @@ c
 c
 C
 C
-c      
-      subroutine shiftsxall_translation_matrices(xmin,npw,nns,nmax,
-     1              wshift,ts,tx)
-C
-C     This subroutine precomputes all translation matrices for all SOE/X
-C     expansions from child to parent or vice versa.
-C
-c     used in merge mp or split loc stage
-c      
-C     INPUT
-C
-c     nd      = vector length (for multiple charges at same locations)
-C     npw     = number of terms in plane wave exp
-C     nns    = number of SOE terms
-C     nmax    = number of different translation lengths in the whole scheme 
-C     ts      = SOE nodes
-C     tx      = X nodes
-c      
-C     OUTPUT:
-C
-C     wshift  = table of translation matrices for SOE/X shift used in
-c                merge mp and split loc stage
-C
-      implicit real *8 (a-h,o-z)
-      complex *16 ts(nns)
-      real *8 tx(-npw:npw)
-      
-      complex *16 wshift(4*(2*npw+1)*nns,4,nmax)
-      
-      complex *16,allocatable:: wwx(:,:)
-      complex *16,allocatable:: wwp(:,:),wwm(:,:)
-
-      complex *16 eye,ztmp
-C
-      eye = dcmplx(0,1)
-      
-      allocate(wwp(nns,nmax),wwm(nns,nmax))
-      
-      allocate(wwx(-npw:npw,nmax))
-
-      do j1=-npw,npw
-         ztmp = exp(eye*tx(j1)*xmin)
-         do j2=1,nmax
-            wwx(j1,j2) = ztmp
-            ztmp = ztmp*ztmp
-         enddo
-      enddo
-
-      do j1=1,nns
-         ztmp = exp(-ts(j1)*xmin)
-         do j2=1,nmax
-            wwp(j1,j2) = ztmp
-            wwm(j1,j2) = 1.0d0/wwp(j1,j2)
-            ztmp = ztmp*ztmp
-         enddo
-      enddo
-
-      nexp=(2*npw+1)*nns
-      
-      do n=1,nmax
-         j = 0
-         do j1=1,nns
-         do j2=-npw,npw
-            j = j+1
-c           pp            
-            wshift(j,       1,n) = wwp(j1,n)*wwx(j2,n)
-            wshift(j+nexp  ,1,n) = wwm(j1,n)*wwx(j2,n)
-            wshift(j+2*nexp,1,n) = wwx(j2,n)*wwp(j1,n)
-            wshift(j+3*nexp,1,n) = wwx(j2,n)*wwm(j1,n)
-c           pm            
-            wshift(j,       2,n) = wwp(j1,n)/wwx(j2,n)
-            wshift(j+nexp  ,2,n) = wwm(j1,n)/wwx(j2,n)
-            wshift(j+2*nexp,2,n) = wwx(j2,n)/wwp(j1,n)
-            wshift(j+3*nexp,2,n) = wwx(j2,n)/wwm(j1,n)
-c           mp            
-            wshift(j,       3,n) = wwx(j2,n)/wwp(j1,n)
-            wshift(j+nexp  ,3,n) = wwx(j2,n)/wwm(j1,n)
-            wshift(j+2*nexp,3,n) = wwp(j1,n)/wwx(j2,n)
-            wshift(j+3*nexp,3,n) = wwm(j1,n)/wwx(j2,n)
-c           mm            
-            wshift(j,       4,n) = 1.0d0/(wwx(j2,n)*wwp(j1,n))
-            wshift(j+nexp  ,4,n) = 1.0d0/(wwx(j2,n)*wwm(j1,n))
-            wshift(j+2*nexp,4,n) = 1.0d0/(wwx(j2,n)*wwp(j1,n))
-            wshift(j+3*nexp,4,n) = 1.0d0/(wwx(j2,n)*wwm(j1,n))
-         enddo
-         enddo
-      enddo
 c
-      return
-      end
-c
-c
-c     
-c
-      subroutine g2dshiftall_vec(nd,nexp,sxall1,sxall2,wshift)
+      subroutine g2dshiftsxall2_vec(nd,npw,nns,sxall,
+     1              wshift)
 C
-C     This subroutine translate all four expansions (sexpall1)
-C     about the center (CENT1) to the center (cent2)
-C     using a precomputed translation matrix wshift.
+C     This subroutine converts the hybrid SOE/X expansion
+C     (shall1) about the center (CENT1) into a hybrid SOE/X 
+C     expansion about (CENT2) for px direction.
 C
-c     used in merge mp (from child to parent) 
-c     or split loc (from parent to child) stages
-c
-c     applicable to SOE, SOE/X, or SOE/Hermite expansions
-c      
-C     INPUT
-C
-c     nd      = vector length (for multiple charges at same locations)
-c     nexp    = length of the whole four SOE/X expansions
-C     sxall1  = original expansion FFEXP
-C     wshift  = precomputed translation matrix
-c      
-C     OUTPUT:
-C
-C     sxall2  = shifted expansion 
-C
-      implicit real *8 (a-h,o-z)
-
-      complex *16 sxall1(nexp,nd)
-      complex *16 sxall2(nexp,nd)
-      
-      complex *16 wshift(nexp)
-C
-      do ind=1,nd
-         do j=1,nexp
-            sxall2(j,ind) = sxall2(j,ind)+sxall1(j,ind)*wshift(j)
-         enddo
-      enddo
-c
-      return
-      end
-c
-c
-c     
-c
-C
-      subroutine g2dshiftsxall0_vec(nd,delta,npw,nns,sxall1,
-     1              cent1,sxall2,cent2,ts,tx)
-C
-C     This subroutine converts the hybrid SOE/X expansions
-C     (sxall1) about the center (CENT1) into a hybrid SOE/X
-C     expansion (sxall2) about (CENT2).
-C
-c     used in merge mp or split loc stage
-c      
 C     INPUT
 C
 c     nd      = vector length (for multiple charges at same locations)
 C     delta   = Gaussian variance
-C     pmax    = plane wave integration param
 C     npw     = number of terms in plane wave exp
 C     nns     = number of SOE terms
-C     sxall1  = original expansion FFEXP
-C     cent1   = center of pwexp1
-C     cent2   = center pwexp2
-C     ts      = SOE nodes
-C     tx      = X nodes
-c      
+C     sxall  = original expansion FFEXP
+C     wshift   = precomputed shift array
+C
 C     OUTPUT:
 C
 C     sxall2  = shifted expansion 
 C
       implicit real *8 (a-h,o-z)
-      complex *16 ts(nns)
-      real *8 tx(-npw:npw)
-      
-      real *8 cent1(2),cent2(2),x,y,xpoint
-      complex *16 sxall1(4*(2*npw+1)*nns,nd)
-      complex *16 sxall2(4*(2*npw+1)*nns,nd)
-      
-      complex *16,allocatable:: wshiftpx(:)
-      complex *16,allocatable:: wshiftmx(:)
-      complex *16,allocatable:: wshiftxp(:)
-      complex *16,allocatable:: wshiftxm(:)
-
-      complex *16 ww1p(20)
-      complex *16 ww2p(20)
-      complex *16 ww2m(20)
-      complex *16 ww1m(20)
-      complex *16,allocatable:: wwx(:)
-      complex *16,allocatable:: wwy(:)
-
-      complex *16 eye
+      complex *16 sxall(4*(2*npw+1)*nns,nd)
+      complex *16 wshift((2*npw+1)*nns)
 C
-      allocate(wwx(-npw:npw))
-      allocate(wwy(-npw:npw))
-      
-      allocate(wshiftpx((2*npw+1)*nns))
-      allocate(wshiftmx((2*npw+1)*nns))
-      allocate(wshiftxp((2*npw+1)*nns))
-      allocate(wshiftxm((2*npw+1)*nns))
-
-      eye = dcmplx(0,1)
-      dsq = 1.0D0/dsqrt(delta)
-      x = (cent2(1) - cent1(1))*dsq
-      y = (cent2(2) - cent1(2))*dsq
-      do j1=1,nns
-         ww1p(j1) = cdexp(-ts(j1)*x)
-         ww1m(j1) = cdexp(ts(j1)*x)
-         ww2p(j1) = cdexp(-ts(j1)*y)
-         ww2m(j1) = cdexp(ts(j1)*y)
-      enddo
-
-      do j2=-npw,npw
-         wwx(j2) = exp(eye*tx(j2)*x)
-         wwy(j2) = exp(eye*tx(j2)*y)
+      nexp = (2*npw+1)*nns
+      do ind=1,nd
+        do isx=0,3
+          do j=1,nexp
+            sxall(j+isx*nexp,ind) = sxall(j+isx*nexp,ind)*wshift(j)
+          enddo
+        enddo
       enddo
 c
-      j = 0
-      do j1=1,nns
-      do j2=-npw,npw
-         j = j+1
-         wshiftpx(j) = ww1p(j1)*wwy(j2)
-         wshiftmx(j) = ww1m(j1)*wwy(j2)
-         wshiftxp(j) = wwx(j2)*ww2p(j1)
-         wshiftxm(j) = wwx(j2)*ww2m(j1)
-      enddo
-      enddo
-      
+      return
+      end
+c
+C
+C
+c            
+      subroutine g2dcopysx_vec(nd,npw,nns,sxall1,
+     1              sxall2,isx)
+C
+C     This subroutine converts the hybrid SOE/X expansion
+C     (shall1) about the center (CENT1) into a hybrid SOE/X 
+C     expansion about (CENT2) for px direction.
+C
+C     INPUT
+C
+c     nd      = vector length (for multiple charges at same locations)
+C     delta   = Gaussian variance
+C     npw     = number of terms in plane wave exp
+C     nns     = number of SOE terms
+C     sxall1  = original expansion FFEXP
+C
+C     OUTPUT:
+C
+C     sxall2  = shifted expansion 
+C
+      implicit real *8 (a-h,o-z)
+      complex *16 sxall1(4*(2*npw+1)*nns,nd)
+      complex *16 sxall2(4*(2*npw+1)*nns,nd)
+C
       nexp = (2*npw+1)*nns
       do ind=1,nd
          do j=1,nexp
-            sxall2(j,ind) = sxall2(j,ind)+
-     1                 sxall1(j,ind)*wshiftpx(j)
-            sxall2(j+nexp,ind) = sxall2(j+nexp,ind)+
-     1                sxall1(j+nexp,ind)*wshiftmx(j)
-            sxall2(j+2*nexp,ind) = sxall2(j+2*nexp,ind)+
-     1                sxall1(j+2*nexp,ind)*wshiftxp(j)
-            sxall2(j+3*nexp,ind) = sxall2(j+3*nexp,ind)+
-     1         sxall1(j+3*nexp,ind)*wshiftxm(j)
+            sxall2(j+isx*nexp,ind) = sxall1(j+isx*nexp,ind)
          enddo
       enddo
 c
@@ -602,7 +459,6 @@ c
 c
 c     
 c
-C
 C***********************************************************************
       subroutine g2dsxzero_vec(nd,sxall,npw,nsoehalf)
       implicit none

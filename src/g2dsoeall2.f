@@ -67,17 +67,15 @@ C
       real *8 x,xp,xq,delta,dsq,y
       complex *16 ws(nn),ts(nn)
       complex *16, allocatable :: ww1p(:,:),ww1m(:,:)
-      complex *16 ww2p(100),ww2m(100)
+      complex *16 ww2p(12),ww2m(12)
       complex *16 qqq,ccc
       complex *16, allocatable :: wtall(:,:)
 C
 C     initialize coefficients to zero.
 C
-      nexp = nn*nn/2
-      
-      allocate(wtall(4*nexp,nd))
-      allocate(ww1p(nn,nd))
-      allocate(ww1m(nn,nd))
+      allocate(wtall(4*72,nd))
+      allocate(ww1p(12,nd))
+      allocate(ww1m(12,nd))
       dsq = 1.0D0/dsqrt(delta)
 C
       do i=1,ns
@@ -100,6 +98,7 @@ ccc            qqq = 1.0d0
 ccc         write(6,*) ' ww1p ',ww1p
 ccc         write(6,*) ' ww2p ',ww2p
 c
+         nexp = nn*nn/2
          do ind = 1,nd
             j = 0
             do j1=1,nn/2
@@ -158,8 +157,8 @@ C
       complex *16 ws(nn),ts(nn)
       complex *16, allocatable :: ww1p(:,:),ww1m(:,:)
       complex *16, allocatable :: ww1px(:,:),ww1mx(:,:)
-      complex *16 ww2p(100),ww2m(100)
-      complex *16 ww2py(100),ww2my(100)
+      complex *16 ww2p(12),ww2m(12)
+      complex *16 ww2py(12),ww2my(12)
 C
       complex *16 qqq,ccc
       complex *16, allocatable :: wtxall(:,:)
@@ -167,14 +166,12 @@ C
 C
 C     initialize coefficients to zero.
 C
-      nexp = nn*nn/2
-      
-      allocate(wtxall(4*nexp,nd))
-      allocate(wtyall(4*nexp,nd))
-      allocate(ww1p(nn,nd))
-      allocate(ww1m(nn,nd))
-      allocate(ww1px(nn,nd))
-      allocate(ww1mx(nn,nd))
+      allocate(wtxall(4*72,nd))
+      allocate(wtyall(4*72,nd))
+      allocate(ww1p(12,nd))
+      allocate(ww1m(12,nd))
+      allocate(ww1px(12,nd))
+      allocate(ww1mx(12,nd))
       dsq = 1.0D0/dsqrt(delta)
 C
       do i=1,ns
@@ -201,6 +198,7 @@ ccc            qqq = 1.0d0
             ww2my(nn/2+j1) = dconjg(ww2my(j1))
          enddo
 c
+         nexp = nn*nn/2
          do ind = 1,nd
             j = 0
             do j1=1,nn/2
@@ -267,8 +265,8 @@ C
       complex *16, allocatable :: ww1pc(:,:),ww1mc(:,:)
       complex *16, allocatable :: ww1p(:,:),ww1m(:,:)
       complex *16, allocatable :: ww1px(:,:),ww1mx(:,:)
-      complex *16 ww2p(100),ww2m(100)
-      complex *16 ww2py(100),ww2my(100)
+      complex *16 ww2p(12),ww2m(12)
+      complex *16 ww2py(12),ww2my(12)
 C
       complex *16 qqq,ccc
       complex *16, allocatable :: wtall(:,:)
@@ -277,17 +275,15 @@ C
 C
 C     initialize coefficients to zero.
 C
-      nexp = nn*nn/2
-      
-      allocate(wtall(4*nexp,nd))
-      allocate(wtxall(4*nexp,nd))
-      allocate(wtyall(4*nexp,nd))
-      allocate(ww1p(nn,nd))
-      allocate(ww1m(nn,nd))
-      allocate(ww1pc(nn,nd))
-      allocate(ww1mc(nn,nd))
-      allocate(ww1px(nn,nd))
-      allocate(ww1mx(nn,nd))
+      allocate(wtall(4*72,nd))
+      allocate(wtxall(4*72,nd))
+      allocate(wtyall(4*72,nd))
+      allocate(ww1p(12,nd))
+      allocate(ww1m(12,nd))
+      allocate(ww1pc(12,nd))
+      allocate(ww1mc(12,nd))
+      allocate(ww1px(12,nd))
+      allocate(ww1mx(12,nd))
       dsq = 1.0D0/dsqrt(delta)
 C
       do i=1,ns
@@ -319,6 +315,7 @@ ccc            qqq = 1.0d0
             ww2my(nn/2+j1) = dconjg(ww2my(j1))
          enddo
 c
+         nexp = nn*nn/2
          do ind = 1,nd
             j = 0
             do j1=1,nn/2
@@ -388,12 +385,11 @@ C
       complex *16, allocatable :: sumz(:)
       complex *16 soeall(4*nn*nn/2,nd)
       complex *16 ws(nn),ts(nn)
-      complex *16 ww1p(100),ww2p(100),ww1m(100),ww2m(100)
-      complex *16, allocatable :: wtall(:)
+      complex *16 ww1p(12),ww2p(12),ww1m(12),ww2m(12)
+      complex *16 wtall(4*72)
 C
 C     initialize coefficients to zero.
 C
-      allocate(wtall(4*nn*nn/2))
       allocate(sumz(nd))
       dsq = 1.0D0/dsqrt(delta)
 C
@@ -477,17 +473,14 @@ C
       complex *16, allocatable ::  sumz(:),sumzx(:),sumzy(:)
       complex *16 soeall(4*nn*nn/2,nd)
       complex *16 ws(nn),ts(nn)
-      complex *16 ww1p(100),ww2p(100),ww1m(100),ww2m(100)
-      complex *16 ww1px(100),ww2py(100),ww1mx(100),ww2my(100)
-      complex *16, allocatable :: wtall(:),wtxall(:),wtyall(:)
+      complex *16 ww1p(12),ww2p(12),ww1m(12),ww2m(12)
+      complex *16 ww1px(12),ww2py(12),ww1mx(12),ww2my(12)
+      complex *16 wtall(4*72)
+      complex *16 wtxall(4*72)
+      complex *16 wtyall(4*72)
 C
 C     initialize coefficients to zero.
 C
-      nexp = nn*nn/2
-      allocate(wtall(4*nexp))
-      allocate(wtxall(4*nexp))
-      allocate(wtyall(4*nexp))
-
       allocate(sumz(nd))
       allocate(sumzx(nd))
       allocate(sumzy(nd))
@@ -525,6 +518,7 @@ c
          enddo
 c
          j = 0
+         nexp = nn*nn/2
          do j1=1,nn/2
          do j2=1,nn
             j = j+1
@@ -602,23 +596,18 @@ C
       complex *16, allocatable ::  sumzxx(:),sumzxy(:),sumzyy(:)
       complex *16 soeall(4*nn*nn/2,nd)
       complex *16 ws(nn),ts(nn)
-      complex *16 ww1p(100),ww2p(100),ww1m(100),ww2m(100)
-      complex *16 ww1px(100),ww2py(100),ww1mx(100),ww2my(100)
-      complex *16 ww1pxx(100),ww2pyy(100),ww1mxx(100),ww2myy(100)
-      complex *16, allocatable :: wtall(:),wtxall(:),wtyall(:)
-      complex *16, allocatable :: wtxxall(:),wtxyall(:),wtyyall(:)
-
+      complex *16 ww1p(12),ww2p(12),ww1m(12),ww2m(12)
+      complex *16 ww1px(12),ww2py(12),ww1mx(12),ww2my(12)
+      complex *16 ww1pxx(12),ww2pyy(12),ww1mxx(12),ww2myy(12)
+      complex *16 wtall(4*72)
+      complex *16 wtxall(4*72)
+      complex *16 wtyall(4*72)
+      complex *16 wtxxall(4*72)
+      complex *16 wtxyall(4*72)
+      complex *16 wtyyall(4*72)
 C
 C     initialize coefficients to zero.
 C
-      nexp = nn*nn/2
-      allocate(wtall(4*nexp))
-      allocate(wtxall(4*nexp))
-      allocate(wtyall(4*nexp))
-      allocate(wtxxall(4*nexp))
-      allocate(wtxyall(4*nexp))
-      allocate(wtyyall(4*nexp))
-
       allocate(sumz(nd))
       allocate(sumzx(nd))
       allocate(sumzy(nd))
@@ -673,6 +662,7 @@ c
          enddo
 c
          j = 0
+         nexp = nn*nn/2
          do j1=1,nn/2
          do j2=1,nn
             j = j+1
@@ -1384,26 +1374,25 @@ C
       implicit real *8 (a-h,o-z)
       real *8 boxsize
       complex *16, allocatable :: wexp(:,:)
-      complex *16 wshift(nsoe*nsoe/2,nmax)
+      complex *16 wshift(nsoe*nsoe/2,0:nmax,0:nmax)
       complex *16 ws(nsoe),ts(nsoe)
-      complex *16 ztmp
 C
-      allocate(wexp(nsoe,nmax))
+      allocate(wexp(nsoe,0:nmax))
       
-      do j1=1,nsoe
-         ztmp = exp(-ts(j1)*boxsize)
-         do j2=1,nmax
-            wexp(j1,j2) = ztmp
-            ztmp = ztmp*ztmp
+      do j2=0,nmax
+         do j1=1,nsoe
+            wexp(j1,j2) = cdexp(-ts(j1)*j2*boxsize)
          enddo
       enddo
 
-      do k1=1,nmax
-         j=0
-         do j1=1,nsoe/2
-            do j2=1,nsoe
-               j=j+1
-               wshift(j,k1)=wexp(j1,k1)*wexp(j2,k1)
+      do k1=0,nmax
+         do k2=0,nmax
+            j=0
+            do j1=1,nsoe/2
+               do j2=1,nsoe
+                  j=j+1
+                  wshift(j,k1,k2)=wexp(j1,k1)*wexp(j2,k2)
+               enddo
             enddo
          enddo
       enddo
@@ -1458,124 +1447,89 @@ c
 C
 c
 C
-      subroutine shiftsoeall_translation_matrices(xmin,nsoe,nmax,
-     1           wshift,ws,ts)
+      subroutine g2dshiftsoeall2_vec(nd,nn,soeall,
+     1              wshift)
 C
-C     This subroutine precomputes all translation matrices for all
-c     SOE translations from child to parent or vice versa.
+C     This subroutine converts the SOE expansion (soeall1) about
+C     the center (CENT1) into an SOE  expansion (soeall2) about 
+C     (CENT2) for pp direction.
 C
 C     INPUT
 C
-c     xmin     = half of the scaled (by 1/sqrt(delta) size of the box 
-c                at the finest level
-C     nsoe     = number of terms in SOE expansion
-C     nmax     = number of different translation lengths in the whole scheme 
-C     ws,ts    = SOE weights and nodes
-C
+c     nd      = vector length (for vector input)
+C     nn      = number of terms in SOE expansion
+C     soeall = original expansion 
+C     wshift  = precomputed shift array
+C     ip      = SOE expansion type index
+c               0 - pp, 1 - pm, 2 - mp, 3 - mm
+c
+c
+c
+c
 C     OUTPUT:
 C
-C     wshift   = table of translation matrices for soe shift used in
-c                merge mp and split loc stage
+C     soeall = shifted expansion 
 C
-      implicit real *8 (a-h,o-z)
-      real *8 xmin
-      complex *16 wshift(4*nsoe*nsoe/2,4,nmax)
-      complex *16 ws(nsoe),ts(nsoe)
-      complex *16 ztmp
-
-      complex *16, allocatable:: wwp(:,:),wwm(:,:),wex(:)
+      implicit none
+      integer nd,nn,j,ind,nexp,ip
+      complex *16 soeall(4*nn*nn/2,nd)
+      complex *16 wshift(nn*nn/2)
 C
-      allocate(wex(nsoe))
-      allocate(wwp(nsoe,nmax),wwm(nsoe,nmax))
-
-      do j=1,nsoe
-         wex(j) = exp(-ts(j)*xmin)
-      enddo
-
-      do j1=1,nsoe
-         ztmp = wex(j1)
-         do j2=1,nmax
-            wwp(j1,j2) = ztmp
-            wwm(j1,j2) = 1.0d0/wwp(j1,j2)
-            ztmp = ztmp*ztmp
+      nexp = nn*nn/2
+      do ind=1,nd
+         do ip=0,3
+         do j=1,nexp
+            soeall(j+ip*nexp,ind) = 
+     1          soeall(j+ip*nexp,ind)*wshift(j)
+         enddo
          enddo
       enddo
 c
-      nexp=nsoe*nsoe/2
-
-      do n=1,nmax
-         j = 0
-         do j1=1,nsoe/2
-         do j2=1,nsoe
-            j = j+1
-c           ++  pp          
-            wshift(j,       1,n) = wwp(j1,n)*wwp(j2,n)
-            wshift(j+nexp  ,1,n) = wwp(j1,n)*wwm(j2,n)
-            wshift(j+2*nexp,1,n) = wwm(j1,n)*wwp(j2,n)
-            wshift(j+3*nexp,1,n) = wwm(j1,n)*wwm(j2,n)
-c           +- pm           
-            wshift(j,       2,n) = wwp(j1,n)/wwp(j2,n)
-            wshift(j+nexp  ,2,n) = wwp(j1,n)/wwm(j2,n)
-            wshift(j+2*nexp,2,n) = wwm(j1,n)/wwp(j2,n)
-            wshift(j+3*nexp,2,n) = wwm(j1,n)/wwm(j2,n)
-c           -+ mp       
-            wshift(j,       3,n) = wwp(j2,n)/wwp(j1,n)
-            wshift(j+nexp  ,3,n) = wwm(j2,n)/wwp(j1,n)
-            wshift(j+2*nexp,3,n) = wwp(j2,n)/wwm(j1,n)
-            wshift(j+3*nexp,3,n) = wwm(j2,n)/wwm(j1,n)
-c           -- mm          
-            wshift(j,       4,n) = 1.0d0/(wwp(j1,n)*wwp(j2,n))
-            wshift(j+nexp  ,4,n) = 1.0d0/(wwp(j1,n)*wwm(j2,n))
-            wshift(j+2*nexp,4,n) = 1.0d0/(wwm(j1,n)*wwp(j2,n))
-            wshift(j+3*nexp,4,n) = 1.0d0/(wwm(j1,n)*wwm(j2,n))
-         enddo
-         enddo
-      enddo
-      
       return
       end
-C      
-C      
-C      
-C      
-C                  
-      subroutine g2dshiftsoeall_vec(nd,nn,soeall1,
-     1              soeall2,wshift)
+c
 C
-C     This subroutine shifts ALL directional SOE expansions (soeall1) 
-C     from the center (CENT1) to SOE expansions (soeall2) about 
-C     (CENT2) using the precomputed shift matrix wshift
+c
+C
+      subroutine g2dcopysoe_vec(nd,nn,soeall1,
+     1              soeall2,ip)
+C
+C     copy soeall1 to soeall2 
 C
 C     INPUT
 C
 c     nd      = vector length (for vector input)
 C     nn      = number of terms in SOE expansion
 C     soeall1 = original expansion 
-C     wshift  = precomputed translation matrix
-c      
+C     ip      = SOE expansion type index
+c               0 - pp, 1 - pm, 2 - mp, 3 - mm
+c
+c
+c
+c
 C     OUTPUT:
 C
-C     soeall2 = shifted expansion 
+C     soeall2 = copied expansion 
 C
       implicit none
-      integer nd,nn,j,ind,nexp
-      complex *16 wshift(4*nn*nn/2)
+      integer nd,nn,j,j1,j2,ind,nexp,ip
       complex *16 soeall1(4*nn*nn/2,nd)
       complex *16 soeall2(4*nn*nn/2,nd)
 C
-      nexp = 4*nn*nn/2
+      nexp = nn*nn/2
       do ind=1,nd
-      do j=1,nexp
-         soeall2(j,ind) = soeall2(j,ind) + soeall1(j,ind)*wshift(j)
+         do j=1,nexp
+            soeall2(j+ip*nexp,ind) = 
+     1          soeall1(j+ip*nexp,ind)
+         enddo
       enddo
-      enddo
-      
+c
       return
       end
 c
+C
 c
-C      
-c
+C
 C***********************************************************************
       subroutine g2dsoezero_vec(nd,soeall,nsoe)
       implicit none

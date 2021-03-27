@@ -56,8 +56,8 @@ c
 c      
 c     n = 1,2,3 bad cases
 c      
-      n = 0
-      delta = bb*bb/(1.5*1.5)*4.0d0**n
+      n = 3
+      delta = bb*bb/(1.5*1.5)*2.0d0**n
 
       
       call prin2(' delta = *',delta,1)
@@ -112,9 +112,9 @@ c
       call dzero(pottargex,ntt)
 
       ifcharge = 1
-      ifdipole = 0
-      ifpgh = 1
-      ifpghtarg = 0
+      ifdipole = 1
+      ifpgh = 3
+      ifpghtarg = 3
       call prinf(' ifcharge is *',ifcharge,1)
       call prinf(' ifdipole is *',ifdipole,1)
       call prinf(' ifpgh is *',ifpgh,1)

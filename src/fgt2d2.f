@@ -169,27 +169,14 @@ c     call the tree memory management
 c     code to determine number of boxes,
 c     number of levels and length of tree
 c
-c     1. determine the maximum level - it seems that the best strategy for point FGT
-c     is to stop refinement as long as the Hermite expansion length is less
-c     than 20 for high precision calculation
-      nlmax = npwlevel + 4
-      bsize = bs0
-      do i = 0,100
-         call g2dhlterms(2,bsize,delta,eps,nlocal0)
-         if (nlocal0 .le. 18) then
-            nlmax = i
-            exit
-         endif
-         bsize = bsize/2
-      enddo
-      write(6,*) ' nlmax',nlmax
-      
+      nlmax = npwlevel + 7
       nlmin = 0
       call pts_tree_mem(sources,ns,targ,nt,idivflag,
      1    ndiv,nlmin,nlmax,iper,
      2    ndiv0,npwlevel,bs0,cen0,nlevels,nboxes,ltree) 
 
 c 
+      write(6,*) ' nlmax',nlmax
       write(6,*) ' nlevels',nlevels
       write(6,*) ' nboxes',nboxes
 
@@ -363,7 +350,6 @@ c     compute the length of SOE expansion
             nsoe = 18
          endif
       endif
-
 
       call prinf(' nlocal =*',nlocal,nlevels+1)
       call prinf(' ntermmax =*',ntermmax,1)
@@ -661,6 +647,7 @@ c
 c
 c     temp variables
       integer i,j,k,l,idim,ip,isx,ii,j1,j2
+      integer k1(0:3),k2(0:3)
       integer ibox,jbox,ilev,npts,nptssrc,nptstarg
       integer nchild,ncoll
 c
@@ -676,7 +663,6 @@ c
       
       integer nn,jx,jy,nlevstart,nlevend
       real *8 d,time1,time2,omp_get_wtime
-      real *8 dx,dy
       real *8 tt1,tt2,xmin,xmin2,t1,t2
       real *8 pottmp,gradtmp(2),hesstmp(3)
 
@@ -692,8 +678,7 @@ c
       complex *16 ws(100),ts(100)
       complex *16, allocatable :: h2s(:,:),h2x(:,:)
       complex *16, allocatable :: s2l(:,:),x2l(:,:)
-      complex *16, allocatable :: wsoeshift(:,:),wsxshift(:,:)
-      complex *16, allocatable :: wsoeshiftall(:,:,:),wsxshiftall(:,:,:)
+      complex *16, allocatable :: wsoeshift(:,:,:),wsxshift(:,:,:)
       
       double precision pi
 c      
@@ -743,7 +728,6 @@ c           Check if the current box is a nonempty leaf box
 
 
 
-
 c      
       nsoehalf = nsoe/2
 
@@ -764,37 +748,23 @@ c     compute translation matrices for SOE and SOE/X expansions
       xmin  = boxsize(nlevels)/sqrt(delta)
       xmin2 = xmin/2
 
-      nmax = nlevels-max(npwlevel,0)+1
-
+      nmax = 2**(nlevels-max(npwlevel,0)+1)
+      
       nexp = nsoe*nsoe/2
-      allocate(wsoeshift(nexp,nmax))
-      nexp = (2*npw+1)*nsoe/2
-      allocate(wsxshift(nexp,nmax))
-
-      call shiftsoe_translation_matrices(xmin,nsoe,nmax,
+      allocate(wsoeshift(nexp,0:nmax,0:nmax))
+      call shiftsoe_translation_matrices(xmin2,nsoe,nmax,
      1    wsoeshift,ws,ts)
-      call shiftsx_translation_matrices(xmin,npw,nsoe,nmax,
-     1    wsxshift,ws,ts)
 
-      nmax = nlevels-max(npwlevel,0)      
-      nsoeall = 4*nsoe*nsoe/2
-      nsxall  = 4*(2*npw+1)*nsoe/2
-      
-      allocate(wsoeshiftall(nsoeall,4,nmax))
-      allocate(wsxshiftall(nsxall,4,nmax))
-      
-      call shiftsoeall_translation_matrices(xmin2,nsoe,nmax,
-     1           wsoeshiftall,ws,ts)
-      call shiftsxall_translation_matrices(xmin2,npw,nsoehalf,nmax,
-     1           wsxshiftall,ts,tx)
-      
+      nexp = (2*npw+1)*nsoe/2
+      allocate(wsxshift(nexp,0:nmax,-nmax:nmax))
+      call shiftsx_translation_matrices(xmin2,npw,nsoehalf,nmax,
+     1    wsxshift,ts,tx)      
 
 c     xmin is used in shiftsoe and shiftsx subroutines to
 c     determine the right translation matrices
 c      
       xmin  = boxsize(nlevels)
       xmin2 = xmin/2
-
 c
 c     1d translation matrices
 c
@@ -930,16 +900,17 @@ c                 Hermite exp to SOE/X and SOE exp
      1                npw,nsoe,h2s,h2x,
      2                rmlexp(iaddr(6,ibox)),
      3                rmlexp(iaddr(2,ibox)),rmlexp(iaddr(1,ibox)))
-cccc                call g2dformsc_vec(nd,delta,
-cccc     1              sourcesort(1,istart),npts,chargesort(1,istart),
-cccc     2              centers(1,ibox),
-cccc     3              nsoe,ws,ts,rmlexp(iaddr(1,ibox)))
-cccc                call g2dformsxc_vec(nd,delta,
-cccc     1              sourcesort(1,istart),npts,chargesort(1,istart),
-cccc     2              centers(1,ibox),pmax,npw,
-cccc     3              nsoehalf,ws,ts,rmlexp(iaddr(2,ibox)))
+
+
+c                 shift the expansion center from box center to corners
+                  jx = 1.05d0*boxsize(ilev)/2/xmin2
+                  call g2dshiftsoeall2_vec(nd,nsoe,
+     1                rmlexp(iaddr(1,ibox)),wsoeshift(1,jx,jx))
+                  call g2dshiftsxall2_vec(nd,npw,nsoehalf,
+     1                rmlexp(iaddr(2,ibox)),wsxshift(1,jx,0))
+
                   if (ntermsh(ilev) .gt. 40) then
-c     form local expansion directly to avoid instability/loss of accuracy
+c                    form local expansion
                      call g2dformlc_vec(nd,delta,
      1                   sourcesort(1,istart),npts,chargesort(1,istart),
      2                   centers(1,ibox),
@@ -975,6 +946,13 @@ c                 Hermite exp to SOE/X and SOE exp
      1                h2s,h2x,rmlexp(iaddr(6,ibox)),
      2                rmlexp(iaddr(2,ibox)),rmlexp(iaddr(1,ibox)))
                   
+c                 shift the expansion center from box center to corners
+                  jx = 1.05d0*boxsize(ilev)/2/xmin2
+                  call g2dshiftsoeall2_vec(nd,nsoe,
+     1                rmlexp(iaddr(1,ibox)),wsoeshift(1,jx,jx))
+                  call g2dshiftsxall2_vec(nd,npw,nsoehalf,
+     1                rmlexp(iaddr(2,ibox)),wsxshift(1,jx,0))
+
                   if (ntermsh(ilev) .gt. 40) then
                      call g2dformld_vec(nd,delta,sourcesort(1,istart),
      1                   npts,rnormalsort(1,istart),
@@ -1010,6 +988,13 @@ c                 Hermite exp to SOE/X and SOE expansions
                   call g2dh2sx_h2s_vec(nd,ntermsh(ilev),npw,nsoe,
      1                h2s,h2x,rmlexp(iaddr(6,ibox)),
      2                rmlexp(iaddr(2,ibox)),rmlexp(iaddr(1,ibox)))
+c                 shift the expansion center from box center to corners
+                  jx = 1.05d0*boxsize(ilev)/2/xmin2
+                  call g2dshiftsoeall2_vec(nd,nsoe,
+     1                rmlexp(iaddr(1,ibox)),wsoeshift(1,jx,jx))
+                  call g2dshiftsxall2_vec(nd,npw,nsoehalf,
+     1                rmlexp(iaddr(2,ibox)),wsxshift(1,jx,0))
+
                   if (ntermsh(ilev) .gt. 40) then
                      call g2dformlcd_vec(nd,delta,sourcesort(1,istart),
      1                   npts,chargesort(1,istart),
@@ -1057,23 +1042,39 @@ C$OMP$SCHEDULE(DYNAMIC)
             iend = isrcse(2,jbox)
             npts = iend-istart+1
             if(npts.gt.0) then
-              dx= centers(1,ibox) - centers(1,jbox)
-              dy= centers(2,ibox) - centers(2,jbox)
+              jx= nint((centers(1,ibox) - centers(1,jbox))/xmin2)
+              jy= nint((centers(2,ibox) - centers(2,jbox))/xmin2)
 
-              if (dx.gt.0 .and. dy.gt.0) then
-                 k=1
-              elseif (dx.gt.0 .and. dy.lt.0) then
-                 k=2
-              elseif (dx.lt.0 .and. dy.gt.0) then
-                 k=3
-              elseif (dx.lt.0 .and. dy.lt.0) then
-                 k=4
-              endif
+              j = 2**(nlevels-ilev-1)
+              k1(0)=j+jx
+              k1(1)=j+jx
+              k1(2)=j-jx
+              k1(3)=j-jx
               
-              call g2dshiftall_vec(nd,nsoeall,rmlexp(iaddr(1,jbox)),
-     1             rmlexp(iaddr(1,ibox)),wsoeshiftall(1,k,nlevels-ilev))
-              call g2dshiftall_vec(nd,nsxall,rmlexp(iaddr(2,jbox)),
-     1            rmlexp(iaddr(2,ibox)),wsxshiftall(1,k,nlevels-ilev))
+              k2(0)=j+jy
+              k2(1)=j-jy
+              k2(2)=j+jy
+              k2(3)=j-jy              
+              do ip=0,3
+                 call g2dshiftsoe_vec(nd,nsoe,
+     1               rmlexp(iaddr(1,jbox)),rmlexp(iaddr(1,ibox)),
+     2               wsoeshift(1,k1(ip),k2(ip)),ip)
+              enddo
+              
+              k1(0)=j+jx
+              k1(1)=j-jx
+              k1(2)=j+jy
+              k1(3)=j-jy
+              
+              k2(0)=jy
+              k2(1)=jy
+              k2(2)=jx
+              k2(3)=jx
+              do ip=0,3
+                 call g2dshiftsx_vec(nd,npw,nsoehalf,
+     1               rmlexp(iaddr(2,jbox)),rmlexp(iaddr(2,ibox)),
+     2               wsxshift(1,k1(ip),k2(ip)),ip)
+              enddo
             endif
           enddo
         enddo
@@ -1121,9 +1122,9 @@ c           shift soe expansions
 c
             do ip=0,3
             do j=1,nlistsoe(ip,ibox)
-              jbox=listsoe(j,ip,ibox)
-              call g2dshiftsoe_vec(nd,nsoe,rmlexp(iaddr(1,jbox)),
-     1            rmlexp(iaddr(3,ibox)),wsoeshift(1,nlevels-ilev+1),ip)
+               jbox=listsoe(j,ip,ibox)
+               call g2dcopysoe_vec(nd,nsoe,
+     1             rmlexp(iaddr(1,jbox)),rmlexp(iaddr(3,ibox)),ip)
             enddo
             enddo
 c
@@ -1131,10 +1132,10 @@ c           shift soe/x hybrid expansions
 c
             do isx=0,3
             do j=1,nlistsx(isx,ibox)
-              jbox=listsx(j,isx,ibox)
-              call g2dshiftsx_vec(nd,npw,nsoehalf,
-     1            rmlexp(iaddr(2,jbox)),rmlexp(iaddr(4,ibox)),
-     2            wsxshift(1,nlevels-ilev+1),isx)
+               jbox=listsx(j,isx,ibox)
+               call g2dcopysx_vec(nd,npw,nsoehalf,
+     1             rmlexp(iaddr(2,jbox)),rmlexp(iaddr(4,ibox)),isx)
+              
              enddo
              enddo
           endif
@@ -1180,22 +1181,45 @@ C$OMP$SCHEDULE(DYNAMIC)
           if(npts.gt.0) then
             do i=1,nchild
               jbox = itree(iptr(5)+4*(ibox-1)+i-1)
-              dx= centers(1,jbox) - centers(1,ibox)
-              dy= centers(2,jbox) - centers(2,ibox)
-              if (dx.gt.0 .and. dy.gt.0) then
-                 k=1
-              elseif (dx.gt.0 .and. dy.lt.0) then
-                 k=2
-              elseif (dx.lt.0 .and. dy.gt.0) then
-                 k=3
-              elseif (dx.lt.0 .and. dy.lt.0) then
-                 k=4
-              endif
+              jx= nint((centers(1,jbox) - centers(1,ibox))/xmin2)
+              jy= nint((centers(2,jbox) - centers(2,ibox))/xmin2)
+
+              j = 2**(nlevels-ilev-1)
+              k1(0)=j+jx
+              k1(1)=j+jx
+              k1(2)=j-jx
+              k1(3)=j-jx
               
-              call g2dshiftall_vec(nd,nsoeall,rmlexp(iaddr(3,ibox)),
-     1            rmlexp(iaddr(3,jbox)),wsoeshiftall(1,k,nlevels-ilev))
-              call g2dshiftall_vec(nd,nsxall,rmlexp(iaddr(4,ibox)),
-     1            rmlexp(iaddr(4,jbox)),wsxshiftall(1,k,nlevels-ilev))
+              k2(0)=j+jy
+              k2(1)=j-jy
+              k2(2)=j+jy
+              k2(3)=j-jy              
+              do ip=0,3
+                 call g2dshiftsoe_vec(nd,nsoe,
+     1               rmlexp(iaddr(3,ibox)),rmlexp(iaddr(3,jbox)),
+     2               wsoeshift(1,k1(ip),k2(ip)),ip)
+              enddo
+              
+              k1(0)=j+jx
+              k1(1)=j-jx
+              k1(2)=j+jy
+              k1(3)=j-jy
+              
+              k2(0)=jy
+              k2(1)=jy
+              k2(2)=jx
+              k2(3)=jx
+
+cccc              print *, jx, jy, j
+cccc              call prinf('k1=*',k1,4)
+cccc              call prinf('k2=*',k2,4)
+cccc              pause
+              
+              do ip=0,3
+                 call g2dshiftsx_vec(nd,npw,nsoehalf,
+     1               rmlexp(iaddr(4,ibox)),rmlexp(iaddr(4,jbox)),
+     2               wsxshift(1,k1(ip),k2(ip)),ip)
+              enddo
             enddo
           endif
         enddo
@@ -1237,6 +1261,19 @@ c              do nothing here
                   nptssrc = iends-istarts+1
 
                   if (nptssrc + nptstarg .gt. 0) then
+
+
+
+c                    shift the expansion center from corners to box center
+                     jx = 1.05d0*boxsize(ilev)/2/xmin2
+                     call g2dshiftsoeall2_vec(nd,nsoe,
+     1                   rmlexp(iaddr(3,ibox)),
+     2                   wsoeshift(1,jx,jx))
+                     call g2dshiftsxall2_vec(nd,npw,nsoehalf,
+     1                   rmlexp(iaddr(4,ibox)),
+     2                   wsxshift(1,jx,0))
+
+                     
 c                    convert SOE expansions to local expansions
                      call g2dsoe2local_vec(nd,nlocal(ilev),nsoe,s2l,
      1                   rmlexp(iaddr(3,ibox)),rmlexp(iaddr(5,ibox)))
