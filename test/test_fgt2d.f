@@ -56,7 +56,7 @@ c
 c      
 c     n = 1,2,3 bad cases
 c      
-      n = 3
+      n = -4
       delta = bb*bb/(1.5*1.5)*2.0d0**n
 
       
@@ -69,10 +69,20 @@ c
       allocate(pot(nsrc),grad(2,nsrc),hess(3,nsrc))
       allocate(pottarg(ntarg),gradtarg(2,ntarg),hesstarg(3,ntarg))
 
+      rin = 0.5d0
+      rwig = 0.3d0
+      nwig = 10
+      
       do i=1,nsrc
+         
+         thet = hkrand(0)*2*pi
+c        nonuniform distribution of sources
+         sources(1,i) = (rin + rwig*cos(thet))*cos(thet)
+         sources(2,i) = (rin + rwig*cos(thet))*sin(thet)
 
-         sources(1,i) = hkrand(0)
-         sources(2,i) = hkrand(0)
+cccc         sources(1,i) = hkrand(0)
+cccc         sources(2,i) = hkrand(0)
+
          rnormal(1,i) = hkrand(0)
          rnormal(2,i) = hkrand(0)
 
@@ -106,7 +116,7 @@ ccc         targ(2,i) = 0.52d0
       allocate(potex(nts),gradex(2,nts),hessex(3,nts))
       allocate(pottargex(ntt),gradtargex(2,ntt),hesstargex(3,ntt))
 
-      eps = 0.5d-10
+      eps = 0.5d-12
 c
       call dzero(potex,nts)
       call dzero(pottargex,ntt)
@@ -125,6 +135,9 @@ c
      1    ifdipole,rnormal,dipstr,iper,ifpgh,pot,grad,hess,
      2    ntarg,targ,ifpghtarg,pottarg,gradtarg,
      3    hesstarg)
+      call prin2('pottarg=*',pottarg,ntt)
+      call prin2('gradtarg=*',gradtarg,2*ntt)
+      call prin2('hesstarg=*',hesstarg,3*ntt)
 
 cccc      write(6,*) 'pot is',(pot(i),i=1,nts)
 cccc      write(6,*) 'gradx is',(grad(1,i),i=1,nts)
@@ -132,15 +145,19 @@ cccc      write(6,*) 'grady is',(grad(2,i),i=1,nts)
 
       reps = 1.0d-100
       call fgt2dpart_direct_vec(1,delta,reps,1,nsrc,1,nts,sources,
-     1            ifcharge,charges,ifdipole,rnormal,dipstr,
-     2            sources,ifpgh,potex,gradex,hessex)
+     1    ifcharge,charges,ifdipole,rnormal,dipstr,
+     2    sources,ifpgh,potex,gradex,hessex)
+      
 cccc      write(6,*) 'potex is',(potex(i),i=1,nts)
 cccc      write(6,*) 'gradexx is',(gradex(1,i),i=1,nts)
 cccc      write(6,*) 'gradexy is',(gradex(2,i),i=1,nts)
 
       call fgt2dpart_direct_vec(1,delta,reps,1,nsrc,1,ntt,sources,
-     1            ifcharge,charges,ifdipole,rnormal,dipstr,
-     2            targ,ifpghtarg,pottargex,gradtargex,hesstargex)
+     1    ifcharge,charges,ifdipole,rnormal,dipstr,
+     2    targ,ifpghtarg,pottargex,gradtargex,hesstargex)
+      call prin2('pottargex=*',pottargex,ntt)
+      call prin2('gradtargex=*',gradtargex,2*ntt)
+      call prin2('hesstargex=*',hesstargex,3*ntt)
 cccc      write(6,*) 'pottarg is',(pottarg(i),i=1,ntt)
 cccc      write(6,*) 'pottargex is',(pottargex(i),i=1,ntt)
 
@@ -184,8 +201,14 @@ c------------------------------------
          erra = erra + (vec1(i)-vec2(i))**2
       enddo
 
-      erra = sqrt(erra/ra)
-ccc      erra = sqrt(erra)/n
+      if (sqrt(ra)/n .lt. 1d-10) then
+         call prin2('vector norm =*', sqrt(ra)/n,1)
+         call prin2('switch to absolute error*',a,0)
+         erra = sqrt(erra)/n
+      else
+         erra = sqrt(erra/ra)
+      endif
+ccc      
 
       return
       end

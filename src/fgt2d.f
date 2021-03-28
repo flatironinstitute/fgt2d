@@ -663,6 +663,12 @@ c     temp variables
       integer i,j,k,l,idim,ip,isx,ii,j1,j2
       integer ibox,jbox,ilev,npts,nptssrc,nptstarg
       integer nchild,ncoll
+
+      integer mnlist1,mnlist2,mnlist3,mnlist4
+      integer nlist1
+      integer, allocatable :: list1(:,:)
+      integer, allocatable :: nlist1s(:)
+      
 c
       integer istart,iend,istarts,iends
       integer isstart,isend,jsstart,jsend
@@ -844,6 +850,18 @@ cccc     1          laddr(2,ilev)-laddr(1,ilev)+1)
 c
 c     compute list info
 c
+
+c
+c        compute list info
+c
+      call computemnlists(nlevels,nboxes,itree,ltree,iptr,centers,
+     1    boxsize,iper,mnlist1,mnlist2,mnlist3,mnlist4)
+      allocate(nlist1s(nboxes),list1(mnlist1,nboxes))
+        
+      call compute_modified_list1(nlevels,npwlevel,nboxes,itree,
+     1    ltree,iptr,centers,boxsize,iper,mnlist1,nlist1s,list1)
+
+      
       call gt2d_computemnlists(nlevels,nboxes,itree,ltree,
      1    iptr,centers,
      2    boxsize,iper,mnlistsoe,mnlistsx)
@@ -1306,15 +1324,19 @@ C$OMP$PRIVATE(ibox,jbox,istartt,iendt,i,jstart,jend,istarte,iende)
 C$OMP$PRIVATE(istarts,iends,nptssrc,nptstarg)
 C$OMP$SCHEDULE(DYNAMIC)  
          do jbox = laddr(1,ilev),laddr(2,ilev)
+c        jbox is the source box            
             if (ifhung(jbox) .eq. 1) then
                
                jstart = isrcse(1,jbox)
                jend = isrcse(2,jbox)
                
 
-               ncoll = itree(iptr(6)+jbox-1)
-               do i=1,ncoll
-                  ibox = itree(iptr(7) + (jbox-1)*9+i-1)
+cc               ncoll = itree(iptr(6)+jbox-1)
+               nlist1 = nlist1s(jbox)
+               do i=1,nlist1
+cccc  ibox = itree(iptr(7) + (jbox-1)*9+i-1)
+cccc              ibox is the target box
+                  ibox = list1(i,jbox)
 
                   istarts = isrcse(1,ibox)
                   iends = isrcse(2,ibox)

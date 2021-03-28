@@ -814,7 +814,7 @@ C
       implicit real*8 (a-h,o-z)
       real *8 local(0:nlocal,0:nlocal,nd)
       real *8 center(2),targ(2,ntarg)
-      real *8 pot(nd,ntarg),xp(0:100),yp(0:100)
+      real *8 pot(nd,ntarg),xp(0:200),yp(0:200)
 C
       dsq = 1.0D0/dsqrt(delta)
 C
@@ -872,10 +872,13 @@ C
       implicit real*8 (a-h,o-z)
       real *8 local(0:nlocal,0:nlocal,nd)
       real *8 center(2),targ(2,ntarg)
-      real *8 pot(nd,ntarg),xp(0:100),yp(0:100)
+      real *8 pot(nd,ntarg)
       real *8 grad(nd,2,ntarg)
+      real *8, allocatable :: xp(:),yp(:)
       real *8, allocatable :: xpx(:),ypy(:)
 C
+      allocate(xp(0:nlocal))
+      allocate(yp(0:nlocal))
       allocate(xpx(0:nlocal))
       allocate(ypy(0:nlocal))
 C
@@ -950,7 +953,7 @@ C
       implicit real*8 (a-h,o-z)
       real *8 local(0:nlocal,0:nlocal,nd)
       real *8 center(2),targ(2,ntarg)
-      real *8 pot(nd,ntarg),xp(0:100),yp(0:100)
+      real *8 pot(nd,ntarg),xp(0:200),yp(0:200)
       real *8 grad(nd,2,ntarg)
       real *8 hess(nd,3,ntarg)
       real *8, allocatable :: xpx(:),ypy(:)
@@ -1809,7 +1812,7 @@ C
       real *8, allocatable :: sqc(:,:),fac(:),hexpx(:)
 
       ntot = ntermsh+nlocal
-      allocate(sqc(0:ntot,0:ntot),fac(0:nlocal),hexpx(0:ntot+1))
+      allocate(sqc(0:ntot,0:ntot),fac(0:nlocal),hexpx(0:ntot))
       
       call getsqrtbinomialcoeffs(ntot,sqc)
       
@@ -1822,7 +1825,7 @@ C
       hexpx(0)=1.0d0
       hexpx(1)=2*x
       
-      do i=1,ntermsh+nlocal
+      do i=1,ntermsh+nlocal-1
          hexpx(i+1)=2.0d0*(x/dsqrt((i+1)*1.0d0)*hexpx(i)
      1          -dsqrt(1.0d0*i/(i+1))*hexpx(i-1))
       enddo

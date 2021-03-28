@@ -117,7 +117,8 @@ c
          nsoe = 18
       else
          nsoe = 18
-         stop 'higher precision of SOE approximation not implemented'
+         write(*,*) 'higher precision of SOE approx not implemented'
+         write(*,*) 'use nsoe=18, with roughly 13-digit accuracy'
       endif
       
       return

@@ -712,6 +712,175 @@ c
 c
 c
 c
+      subroutine compute_modified_list1(nlevels,npwlevel,nboxes,
+     1            itree,ltree,iptr,centers,
+     2            boxsize,iper,mnlist1,nlist1,list1)
+c
+c
+c     This subroutine computes the modified list1 of a given tree
+c     structure
+c
+c     Note: new definition of list 1 - (1) for ilev < npwlevel,             
+c                  list1 is the same as before; (2) for ilev =
+c                  npwlevel, boxes at the finer level in list1 
+c                  are replaced by their parent, i.e., the colleague 
+c                  of ibox; (3) for ilev > npwlevel, list1 has
+c                  no use in the FGT.
+c                  
+c     Assume that the tree is level-restricted. Then the
+c     new list1 of source ibox contains all target boxes 
+c     that require the evaluation of direct interaction with ibox 
+c     in the point FGT.  
+c      
+c      
+c     INPUT arguments
+c     nlevels     in: integer
+c                 Number of levels
+c
+c     npwlevel    in: integer
+c                 Cutoff level
+c
+c     nboxes      in: integer
+c                 Total number of boxes
+c
+c     itree       in: integer(ltree)
+c                   array containing tree info - see start of file
+c                   for documentation
+c     ltree       in: integer
+c                   length of itree array
+c 
+c     iptr        in: integer(8)
+c                   pointer for various arrays in itree
+c
+c     centers     in: real *8(2,nboxes)
+c                 xy coordinates of centers of boxes
+c   
+c     boxsize     in: real *8(0:nlevels)
+c                 Array of boxsizes
+c   
+c     iper        in: integer
+c                 flag for periodic implementations. Currently not used.
+c                 Feature under construction
+c 
+c     mnlist1     in: integer
+c                 max number of boxes in list 1 of a box
+c
+c--------------------------------------------------------------
+c     OUTPUT arguments:
+c     nlist1      out: integer(nboxes)
+c                 nlist1(i) is the number of boxes in list 1 
+c                 of box i
+c
+c     list1       out: integer(mnlist1,nboxes)
+c                 list1(j,i) is the box id of the jth box in 
+c                 list1 of box i.
+c                  
+c      
+c---------------------------------------------------------------
+      implicit none
+      integer nlevels,npwlevel,nboxes,ltree
+      integer iper
+      integer itree(ltree),iptr(8)
+      real *8 boxsize(0:nlevels)
+      real *8 centers(2,nboxes)
+      integer mnlist1,mnlist2,mnlist3,mnlist4
+      integer nlist1(nboxes), list1(mnlist1,nboxes)
+
+c     Temp variables
+      integer ilev,ibox,jbox,kbox,dad
+      integer i,j,ifirstbox,ilastbox,ii
+      real *8 distest,xdis,ydis
+
+      do i=1,nboxes
+        nlist1(i) = 0
+      enddo
+
+
+c     Setting parameters for level = 0
+      if(itree(iptr(4)).eq.0) then
+         nlist1(1) = 1 
+         list1(1,1) = 1
+      else
+         nlist1(1) = 0
+      endif
+
+      
+
+
+
+
+
+      do ilev = 1,nlevels
+c        Find the first and the last box at level ilev      
+         ifirstbox = itree(2*ilev+1)
+         ilastbox = itree(2*ilev+2)
+
+         do ibox = ifirstbox,ilastbox
+            dad = itree(iptr(3)+ibox-1)
+
+c           Compute list 1 and list 3 of ibox if ibox is childless
+            if(itree(iptr(4)+ibox-1).eq.0) then
+c              Loop over all colleagues of ibox              
+               do i=1,itree(iptr(6)+ibox-1)
+                  jbox = itree(iptr(7)+9*(ibox-1)+i-1)
+
+                  if (ilev .ge. npwlevel) then
+                     nlist1(ibox) = nlist1(ibox)+1
+                     list1(nlist1(ibox),ibox) = jbox
+                  else
+c                    If the colleague box is childless, then
+c                    colleague box is in list 1
+                     if(itree(iptr(4)+jbox-1).eq.0) then
+                        nlist1(ibox) = nlist1(ibox)+1
+                        list1(nlist1(ibox),ibox) = jbox
+
+c                    If colleague box is not childless, then
+c                    test to see if children of colleague
+c                    box are in list1 or list 3. 
+
+                     else
+                        distest = 1.05d0*(boxsize(ilev) + 
+     1                                 boxsize(ilev+1))/2.0d0
+c                       Loop over children of colleague box              
+                        do j=1,itree(iptr(4)+jbox-1)
+                           kbox = itree(iptr(5)+4*(jbox-1)+j-1)
+                           xdis = dabs(centers(1,kbox)-centers(1,ibox))
+                           ydis = dabs(centers(2,kbox)-centers(2,ibox))
+c                       Test to see if child of colleague box
+c                       is in list1
+                           if(xdis.lt.distest.and.ydis.lt.distest) then
+                              nlist1(ibox) = nlist1(ibox)+1
+                              list1(nlist1(ibox),ibox)=kbox
+
+                              nlist1(kbox) = nlist1(kbox)+1
+                              list1(nlist1(kbox),kbox) = ibox
+                           endif
+c                       End of figuring out whether child 
+c                       of colleague box is in list 1 or list3
+                        enddo
+c                    End of looping over of children of colleague
+c                    box
+                     endif
+c                    End of checking if colleague box has children
+                  endif
+               enddo
+c              End of looping over colleague boxes
+            endif 
+c           End of checking of current box is childless
+
+
+ 1120      continue
+         enddo
+c        End of looping over boxes at level ilev         
+      enddo
+c     End of looping over levels      
+
+      return
+      end
+c
+c
+c
+c
       subroutine gt2d_computemnlists(nlevels,nboxes,itree,ltree,
      1   iptr,centers,
      1   boxsize,iper,mnlistsoe,mnlistsx)
