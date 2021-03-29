@@ -1248,8 +1248,10 @@ c
 
       levcut = int(dl)
 
-cccc      if (bs0 .lt. dc) return
-cccc      bs0 = (2**levcut)*dc
-
+      if (bs0 .lt. dc) return
+cccc      bs0 = 2**(levcut+1)*dc
+cccc      levcut = levcut+1
+cccc      call prin2('boxsize(0) is enlarged to*',bs0,1)
+      
       return
       end

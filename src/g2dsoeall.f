@@ -389,18 +389,21 @@ C
       complex *16 soeall(4*nn*nn/2,nd)
       complex *16 ws(nn),ts(nn)
       complex *16 ww1p(100),ww2p(100),ww1m(100),ww2m(100)
+      complex *16 cd, z0,z1,z2,z3
       complex *16, allocatable :: wtall(:)
 C
 C     initialize coefficients to zero.
 C
-      allocate(wtall(4*nn*nn/2))
-      allocate(sumz(nd))
+cccc      allocate(wtall(4*nn*nn/2))
+cccc      allocate(sumz(nd))
       dsq = 1.0D0/dsqrt(delta)
 C
+      nexp = nn*nn/2
+      
       do itarg = 1,ntarg
-         do ind = 1,nd
-            sumz(ind) = 0.0d0
-         enddo
+cccc         do ind = 1,nd
+cccc            sumz(ind) = 0.0d0
+cccc         enddo
 c
          x = (targ(1,itarg) - center(1))*dsq
          y = (targ(2,itarg) - center(2))*dsq
@@ -415,33 +418,49 @@ c
             ww2m(nn/2+j1) = dconjg(ww2m(j1))
          enddo
 c
-         j = 0
-         nexp = nn*nn/2
-         do j1=1,nn/2
-         do j2=1,nn
-            j = j+1
-            wtall(j) = ww1p(j1)*ww2p(j2)
-            wtall(nexp+j) = ww1p(j1)*ww2m(j2)
-            wtall(2*nexp+j) = ww1m(j1)*ww2p(j2)
-            wtall(3*nexp+j) = ww1m(j1)*ww2m(j2)
-ccc           write(6,*) 'j1,j2,texp',j1,j2,texp(ind,j1,j2)
-         enddo
-         enddo
-c
+cccc         j = 0
+cccc         do j1=1,nn/2
+cccc         do j2=1,nn
+cccc            j = j+1
+cccc            wtall(j) = ww1p(j1)*ww2p(j2)
+cccc            wtall(nexp+j) = ww1p(j1)*ww2m(j2)
+cccc            wtall(2*nexp+j) = ww1m(j1)*ww2p(j2)
+cccc            wtall(3*nexp+j) = ww1m(j1)*ww2m(j2)
+cccc         enddo
+cccc         enddo
+ccccc
+cccc         do ind=1,nd
+cccc         do j=1,4*nn*nn/2
+cccc               sumz(ind) = sumz(ind) +
+cccc     1         wtall(j)*soeall(j,ind)
+cccc         enddo
+cccc         enddo
+ccccc
+cccc         do ind = 1,nd
+cccc            pot(ind,itarg) = pot(ind,itarg)+dble(sumz(ind))/2
+cccc         enddo
+
          do ind=1,nd
-         do j=1,4*nn*nn/2
-ccc         write(6,*) '3 in evaltp  nexp is ',nexp
-ccc         write(6,*) 'talbotall ',talbotall(j,1)
-ccc         write(6,*) 'wtall ',wtall(j)
-               sumz(ind) = sumz(ind) +
-     1         wtall(j)*soeall(j,ind)
-         enddo
-         enddo
-c
-         do ind = 1,nd
-            pot(ind,itarg) = pot(ind,itarg)+dble(sumz(ind))/2
+            cd = 0
+            j = 0
+            do j1=1,nn/2
+               z0=0
+               z1=0
+               z2=0
+               z3=0               
+               do j2=1,nn
+                  j = j+1
+                  z0=z0+soeall(j,ind)*ww2p(j2)
+                  z1=z1+soeall(nexp+j,ind)*ww2m(j2)
+                  z2=z2+soeall(2*nexp+j,ind)*ww2p(j2)
+                  z3=z3+soeall(3*nexp+j,ind)*ww2m(j2)
+               enddo
+               cd=cd+(z0+z1)*ww1p(j1)+(z2+z3)*ww1m(j1)
+            enddo
+            pot(ind,itarg) = pot(ind,itarg)+dble(cd)/2
          enddo
       enddo
+
       return
       end
 C
@@ -473,17 +492,18 @@ C
       implicit none
       integer nterms,nd,nn,i,ind,j1,j2,j,nexp,itarg,ntarg
       real *8 center(2),targ(2,ntarg)
-      real *8 x,y,pot(nd,ntarg),grad(nd,2,ntarg),delta,pmax,dsq
-      complex *16, allocatable ::  sumz(:),sumzx(:),sumzy(:)
+      real *8 x,y,pot(nd,ntarg),grad(nd,2,ntarg),delta,dsq
       complex *16 soeall(4*nn*nn/2,nd)
       complex *16 ws(nn),ts(nn)
+      
       complex *16 ww1p(100),ww2p(100),ww1m(100),ww2m(100)
       complex *16 ww1px(100),ww2py(100),ww1mx(100),ww2my(100)
+      
+      complex *16, allocatable ::  sumz(:),sumzx(:),sumzy(:)
       complex *16, allocatable :: wtall(:),wtxall(:),wtyall(:)
 C
-C     initialize coefficients to zero.
-C
       nexp = nn*nn/2
+
       allocate(wtall(4*nexp))
       allocate(wtxall(4*nexp))
       allocate(wtyall(4*nexp))
@@ -491,6 +511,7 @@ C
       allocate(sumz(nd))
       allocate(sumzx(nd))
       allocate(sumzy(nd))
+
       dsq = 1.0D0/dsqrt(delta)
 C
       do itarg = 1,ntarg
@@ -505,13 +526,13 @@ c
          do j1=1,nn/2
             ww1p(j1) = cdexp(-ts(j1)*x)
             ww2p(j1) = cdexp(-ts(j1)*y)
-            ww1m(j1) = cdexp(ts(j1)*x)
-            ww2m(j1) = cdexp(ts(j1)*y)
+            ww1m(j1) = 1/ww1p(j1)
+            ww2m(j1) = 1/ww2p(j1)
 c
             ww1px(j1) = -ts(j1)*dsq*ww1p(j1)
             ww2py(j1) = -ts(j1)*dsq*ww2p(j1)
-            ww1mx(j1) = ts(j1)*dsq*ww1m(j1) 
-            ww2my(j1) = ts(j1)*dsq*ww2m(j1)
+            ww1mx(j1) =  ts(j1)*dsq*ww1m(j1) 
+            ww2my(j1) =  ts(j1)*dsq*ww2m(j1)
 c
             ww1p(nn/2+j1) = dconjg(ww1p(j1))
             ww2p(nn/2+j1) = dconjg(ww2p(j1))
@@ -542,7 +563,6 @@ c
             wtyall(nexp+j) = ww1p(j1)*ww2my(j2)
             wtyall(2*nexp+j) = ww1m(j1)*ww2py(j2)
             wtyall(3*nexp+j) = ww1m(j1)*ww2my(j2)
-ccc           write(6,*) 'j1,j2,texp',j1,j2,texp(ind,j1,j2)
          enddo
          enddo
 c
@@ -563,6 +583,7 @@ c
             grad(ind,2,itarg) = grad(ind,2,itarg)+dreal(sumzy(ind))/2
          enddo
       enddo
+      
       return
       end
 C
@@ -594,24 +615,27 @@ C     grad          = gradient (or vectorized gradients) incremented
 C     hess          = Hessian (or vectorized Hessians) incremented
 C
       implicit none
-      integer nterms,nd,nn,i,ind,j1,j2,j,nexp,itarg,ntarg
+      integer nd,nn,ntarg
       real *8 center(2),targ(2,ntarg)
       real *8 pot(nd,ntarg),grad(nd,2,ntarg),hess(nd,3,ntarg)
-      real *8 x,y,delta,pmax,dsq
-      complex *16, allocatable :: sumz(:),sumzx(:),sumzy(:)
-      complex *16, allocatable ::  sumzxx(:),sumzxy(:),sumzyy(:)
-      complex *16 soeall(4*nn*nn/2,nd)
       complex *16 ws(nn),ts(nn)
+      complex *16 soeall(4*nn*nn/2,nd)
+
+      integer i,ind,j1,j2,j,nexp,itarg
+      real *8 x,y,delta,dsq
+      
       complex *16 ww1p(100),ww2p(100),ww1m(100),ww2m(100)
       complex *16 ww1px(100),ww2py(100),ww1mx(100),ww2my(100)
       complex *16 ww1pxx(100),ww2pyy(100),ww1mxx(100),ww2myy(100)
+      
+      complex *16, allocatable :: sumz(:),sumzx(:),sumzy(:)
+      complex *16, allocatable ::  sumzxx(:),sumzxy(:),sumzyy(:)
       complex *16, allocatable :: wtall(:),wtxall(:),wtyall(:)
       complex *16, allocatable :: wtxxall(:),wtxyall(:),wtyyall(:)
 
 C
-C     initialize coefficients to zero.
-C
       nexp = nn*nn/2
+      
       allocate(wtall(4*nexp))
       allocate(wtxall(4*nexp))
       allocate(wtyall(4*nexp))
@@ -625,6 +649,7 @@ C
       allocate(sumzxx(nd))
       allocate(sumzxy(nd))
       allocate(sumzyy(nd))
+      
       dsq = 1.0D0/dsqrt(delta)
 C
       do itarg = 1,ntarg
@@ -643,13 +668,13 @@ c
 c
             ww1p(j1) = cdexp(-ts(j1)*x)
             ww2p(j1) = cdexp(-ts(j1)*y)
-            ww1m(j1) = cdexp(ts(j1)*x)
-            ww2m(j1) = cdexp(ts(j1)*y)
+            ww1m(j1) = 1/ww1p(j1)
+            ww2m(j1) = 1/ww2p(j1)
 c
             ww1px(j1) = -ts(j1)*dsq*ww1p(j1)
             ww2py(j1) = -ts(j1)*dsq*ww2p(j1)
-            ww1mx(j1) = ts(j1)*dsq*ww1m(j1) 
-            ww2my(j1) = ts(j1)*dsq*ww2m(j1)
+            ww1mx(j1) =  ts(j1)*dsq*ww1m(j1) 
+            ww2my(j1) =  ts(j1)*dsq*ww2m(j1)
 c
             ww1p(nn/2+j1) = dconjg(ww1p(j1))
             ww2p(nn/2+j1) = dconjg(ww2p(j1))
@@ -663,8 +688,8 @@ c
 c
             ww1pxx(j1) = -ts(j1)*dsq*ww1px(j1)
             ww2pyy(j1) = -ts(j1)*dsq*ww2py(j1)
-            ww1mxx(j1) = ts(j1)*dsq*ww1mx(j1) 
-            ww2myy(j1) = ts(j1)*dsq*ww2my(j1)
+            ww1mxx(j1) =  ts(j1)*dsq*ww1mx(j1) 
+            ww2myy(j1) =  ts(j1)*dsq*ww2my(j1)
 c
             ww1pxx(nn/2+j1) = dconjg(ww1pxx(j1))
             ww2pyy(nn/2+j1) = dconjg(ww2pyy(j1))
@@ -734,6 +759,7 @@ c
             hess(ind,3,itarg) = hess(ind,3,itarg)+dreal(sumzyy(ind))/2
          enddo
       enddo
+      
       return
       end
 C

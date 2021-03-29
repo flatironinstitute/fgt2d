@@ -338,6 +338,7 @@ c
          call g2dhlterms(2,boxsize(i),delta,eps,nlocal(i))
          if (ifdipole.eq.1 .or. ifpgh.ge.2 .or. ifpghtarg.ge.2) then
             nlocal(i)=nlocal(i)+nadd
+cccc            nlocal(i)=nlocal(i)*1.1
          endif
 
          ntermsh(i) = nlocal(i)
@@ -677,10 +678,13 @@ c
 
       integer ifprint
 
-      integer nexp,nshiftmax,nmax,kshift
+      integer nexp,nmax
       integer nsoeall,nsxall
       
       integer nn,jx,jy,nlevstart,nlevend
+
+      integer ntermswitch,nlocalswitch
+      
       real *8 d,time1,time2,omp_get_wtime
       real *8 dx,dy
       real *8 tt1,tt2,xmin,xmin2,t1,t2
@@ -744,6 +748,15 @@ c           Check if the current box is a nonempty leaf box
       do i=0,nlevels
          timelev(i) = 0
       enddo
+
+c     compute list info
+c
+      call computemnlists(nlevels,nboxes,itree,ltree,iptr,centers,
+     1    boxsize,iper,mnlist1,mnlist2,mnlist3,mnlist4)
+      allocate(nlist1s(nboxes),list1(mnlist1,nboxes))
+c     modified list1 for direct evaluation
+      call compute_modified_list1(nlevels,npwlevel,nboxes,itree,
+     1    ltree,iptr,centers,boxsize,iper,mnlist1,nlist1s,list1)
 
 c     direct evaluation if the cutoff level is >= the maximum level 
       if (npwlevel .ge. nlevels) goto 1800
@@ -850,25 +863,13 @@ cccc     1          laddr(2,ilev)-laddr(1,ilev)+1)
 c
 c     compute list info
 c
-
-c
-c        compute list info
-c
-      call computemnlists(nlevels,nboxes,itree,ltree,iptr,centers,
-     1    boxsize,iper,mnlist1,mnlist2,mnlist3,mnlist4)
-      allocate(nlist1s(nboxes),list1(mnlist1,nboxes))
-        
-      call compute_modified_list1(nlevels,npwlevel,nboxes,itree,
-     1    ltree,iptr,centers,boxsize,iper,mnlist1,nlist1s,list1)
-
-      
       call gt2d_computemnlists(nlevels,nboxes,itree,ltree,
      1    iptr,centers,
      2    boxsize,iper,mnlistsoe,mnlistsx)
-
       allocate(nlistsoe(0:3,nboxes),listsoe(mnlistsoe,0:3,nboxes))
       allocate(nlistsx (0:3,nboxes), listsx (mnlistsx,0:3,nboxes))
-
+c     listsoe contains source boxes in the soe directions
+c     listsx  contains source boxes in the sx  directions
       call gt2d_computelists_slow(nlevels,npwlevel,nboxes,
      1    itree,ltree,iptr,centers,boxsize,laddr,
      2    mnlistsoe,nlistsoe,listsoe,
@@ -898,6 +899,14 @@ c
 
       call prinf('laddr=*',laddr,2*(nlevels+1))
 
+c     If ntermsh > ntermswitch, form soe and sx expansions directly.
+c     Otherwise, form Hermite, then use h2sx_h2s to form.
+      ntermswitch = 50
+c     If nlocal > nlocalswitch, evaluate soe and sx expansions directly.
+c     Otherwise, use soe2local, sx2local to form local, then do local eval.
+      nlocalswitch = 60
+
+      nlevstart = max(npwlevel,0)
       
       if(ifprint .ge. 1) 
      $   call prinf('=== STEP 1 (form mp) ====*',i,0)
@@ -931,35 +940,34 @@ C$OMP$SCHEDULE(DYNAMIC)
                npts = iend-istart+1
 c              Check if current box is a leaf box            
                if(nchild.eq.0.and.npts.gt.0) then
-c                 form the Hermite expansion
-                  call g2dformhc_vec(nd,delta,
-     1                sourcesort(1,istart),npts,chargesort(1,istart),
-     2                centers(1,ibox),
-     3                ntermsh(ilev),rmlexp(iaddr(6,ibox)))
-c                 Hermite exp to SOE/X and SOE exp
-                  call g2dh2sx_h2s_vec(nd,ntermsh(ilev),
-     1                npw,nsoe,h2s,h2x,
-     2                rmlexp(iaddr(6,ibox)),
-     3                rmlexp(iaddr(2,ibox)),rmlexp(iaddr(1,ibox)))
-cccc                call g2dformsc_vec(nd,delta,
-cccc     1              sourcesort(1,istart),npts,chargesort(1,istart),
-cccc     2              centers(1,ibox),
-cccc     3              nsoe,ws,ts,rmlexp(iaddr(1,ibox)))
-cccc                call g2dformsxc_vec(nd,delta,
-cccc     1              sourcesort(1,istart),npts,chargesort(1,istart),
-cccc     2              centers(1,ibox),pmax,npw,
-cccc     3              nsoehalf,ws,ts,rmlexp(iaddr(2,ibox)))
-                  if (ntermsh(ilev) .gt. 40) then
-c     form local expansion directly to avoid instability/loss of accuracy
-                     call g2dformlc_vec(nd,delta,
-     1                   sourcesort(1,istart),npts,chargesort(1,istart),
-     2                   centers(1,ibox),
-     3                   nlocal(ilev),rmlexp(iaddr(5,ibox)))
-                  else
+                  if (ntermsh(ilev) .le. ntermswitch) then
+c                    form the Hermite expansion
+                     call g2dformhc_vec(nd,delta,
+     1                   sourcesort(1,istart),npts,
+     2                   chargesort(1,istart),centers(1,ibox),
+     3                   ntermsh(ilev),rmlexp(iaddr(6,ibox)))
+c                    Hermite exp to SOE/X and SOE exp
+                     call g2dh2sx_h2s_vec(nd,ntermsh(ilev),
+     1                   npw,nsoe,h2s,h2x,
+     2                   rmlexp(iaddr(6,ibox)),
+     3                   rmlexp(iaddr(2,ibox)),rmlexp(iaddr(1,ibox)))
 c                    Hermite exp to local exp
                      call g2dherm2local_vec(nd,nlocal(ilev),
      1                   ntermsh(ilev),h2ltmp,rmlexp(iaddr(6,ibox)),
      2                   rmlexp(iaddr(5,ibox)))
+                  else
+c                    form soe directly
+                     call g2dformsc_vec(nd,delta,sourcesort(1,istart),
+     1                   npts,chargesort(1,istart),centers(1,ibox),
+     2                   nsoe,ws,ts,rmlexp(iaddr(1,ibox)))
+c                    form sx directly
+                     call g2dformsxc_vec(nd,delta,sourcesort(1,istart),
+     1                   npts,chargesort(1,istart),centers(1,ibox),
+     2                   npw,wx,tx,nsoehalf,ws,ts,rmlexp(iaddr(2,ibox)))
+c                    form local expansion directly
+                     call g2dformlc_vec(nd,delta,sourcesort(1,istart),
+     1                   npts,chargesort(1,istart),centers(1,ibox),
+     2                   nlocal(ilev),rmlexp(iaddr(5,ibox)))
                   endif
                endif
             enddo
@@ -977,25 +985,37 @@ C$OMP$SCHEDULE(DYNAMIC)
                npts = iend-istart+1
 c              Check if current box is a leaf box            
                if(nchild.eq.0.and.npts.gt.0) then
-                  call g2dformhd_vec(nd,delta,sourcesort(1,istart),
-     1                npts,rnormalsort(1,istart),
-     2                dipstrsort(1,istart),centers(1,ibox),
-     3                ntermsh(ilev),rmlexp(iaddr(6,ibox)))
-c                 Hermite exp to SOE/X and SOE exp
-                  call g2dh2sx_h2s_vec(nd,ntermsh(ilev),npw,nsoe,
-     1                h2s,h2x,rmlexp(iaddr(6,ibox)),
-     2                rmlexp(iaddr(2,ibox)),rmlexp(iaddr(1,ibox)))
-                  
-                  if (ntermsh(ilev) .gt. 40) then
-                     call g2dformld_vec(nd,delta,sourcesort(1,istart),
+                  if (ntermsh(ilev) .le. ntermswitch) then
+c                    form Hermite directly
+                     call g2dformhd_vec(nd,delta,sourcesort(1,istart),
      1                   npts,rnormalsort(1,istart),
      2                   dipstrsort(1,istart),centers(1,ibox),
-     3                   nlocal(ilev),rmlexp(iaddr(5,ibox)))
-                  else
+     3                   ntermsh(ilev),rmlexp(iaddr(6,ibox)))
+c                    Hermite exp to SOE/X and SOE exp
+                     call g2dh2sx_h2s_vec(nd,ntermsh(ilev),npw,nsoe,
+     1                   h2s,h2x,rmlexp(iaddr(6,ibox)),
+     2                   rmlexp(iaddr(2,ibox)),rmlexp(iaddr(1,ibox)))
 c                    Hermite expansion to local expansion
                      call g2dherm2local_vec(nd,nlocal(ilev),
      1                   ntermsh(ilev),h2ltmp,rmlexp(iaddr(6,ibox)),
      2                   rmlexp(iaddr(5,ibox)))
+                  else
+c                    form soe directly
+                     call g2dformsd_vec(nd,delta,sourcesort(1,istart),
+     1                   npts,rnormalsort(1,istart),
+     2                   dipstrsort(1,istart),centers(1,ibox),
+     3                   nsoe,ws,ts,rmlexp(iaddr(1,ibox)))
+c                    form sx directly                     
+                     call g2dformsxd_vec(nd,delta,sourcesort(1,istart),
+     1                   npts,rnormalsort(1,istart),
+     2                   dipstrsort(1,istart),centers(1,ibox),
+     3                   npw,wx,tx,nsoehalf,ws,ts,
+     4                   rmlexp(iaddr(2,ibox)))
+c                    form local directly
+                     call g2dformld_vec(nd,delta,sourcesort(1,istart),
+     1                   npts,rnormalsort(1,istart),
+     2                   dipstrsort(1,istart),centers(1,ibox),
+     3                   nlocal(ilev),rmlexp(iaddr(5,ibox)))
                   endif
                endif
             enddo
@@ -1013,25 +1033,40 @@ C$OMP$SCHEDULE(DYNAMIC)
                npts = iend-istart+1
 c              Check if current box is a leaf box            
                if(nchild.eq.0.and.npts.gt.0) then
-                  call g2dformhcd_vec(nd,delta,sourcesort(1,istart),
-     1                npts,chargesort(1,istart),rnormalsort(1,istart),
-     2                dipstrsort(1,istart),centers(1,ibox),
-     3                ntermsh(ilev),rmlexp(iaddr(6,ibox)))
-c                 Hermite exp to SOE/X and SOE expansions
-                  call g2dh2sx_h2s_vec(nd,ntermsh(ilev),npw,nsoe,
-     1                h2s,h2x,rmlexp(iaddr(6,ibox)),
-     2                rmlexp(iaddr(2,ibox)),rmlexp(iaddr(1,ibox)))
-                  if (ntermsh(ilev) .gt. 40) then
+                  if (ntermsh(ilev) .le. ntermswitch) then
+c                    form the Hermite expansion
+                     call g2dformhcd_vec(nd,delta,sourcesort(1,istart),
+     1                   npts,chargesort(1,istart),
+     2                   rnormalsort(1,istart),
+     3                   dipstrsort(1,istart),centers(1,ibox),
+     4                   ntermsh(ilev),rmlexp(iaddr(6,ibox)))
+c                    Hermite exp to SOE/X and SOE expansions
+                     call g2dh2sx_h2s_vec(nd,ntermsh(ilev),npw,nsoe,
+     1                   h2s,h2x,rmlexp(iaddr(6,ibox)),
+     2                   rmlexp(iaddr(2,ibox)),rmlexp(iaddr(1,ibox)))
+c                    Hermite exp to local expansion
+                     call g2dherm2local_vec(nd,nlocal(ilev),
+     1                   ntermsh(ilev),h2ltmp,
+     1                   rmlexp(iaddr(6,ibox)),rmlexp(iaddr(5,ibox)))                  
+                  else
+c                    form soe directly
+                     call g2dformscd_vec(nd,delta,sourcesort(1,istart),
+     1                   npts,chargesort(1,istart),
+     2                   rnormalsort(1,istart),dipstrsort(1,istart),
+     2                   centers(1,ibox),
+     3                   nsoe,ws,ts,rmlexp(iaddr(1,ibox)))
+c                    form sx directly
+                     call g2dformsxcd_vec(nd,delta,sourcesort(1,istart),
+     1                   npts,chargesort(1,istart),
+     2                   rnormalsort(1,istart),dipstrsort(1,istart),
+     3                   centers(1,ibox),npw,wx,tx,nsoehalf,ws,ts,
+     4                   rmlexp(iaddr(2,ibox)))
+c                    form local directly
                      call g2dformlcd_vec(nd,delta,sourcesort(1,istart),
      1                   npts,chargesort(1,istart),
      2                   rnormalsort(1,istart),dipstrsort(1,istart),
      3                   centers(1,ibox),nlocal(ilev),
      4                   rmlexp(iaddr(5,ibox)))
-                  else
-c                    Hermite exp to local expansion
-                     call g2dherm2local_vec(nd,nlocal(ilev),
-     1                   ntermsh(ilev),h2ltmp,
-     1                   rmlexp(iaddr(6,ibox)),rmlexp(iaddr(5,ibox)))
                   endif
                endif
             enddo
@@ -1056,7 +1091,7 @@ C$    time1=omp_get_wtime()
 c
 
       
-      do 1200 ilev=nlevels-1,max(npwlevel,0),-1
+      do 1200 ilev=nlevels-1,nlevstart,-1
 C$OMP PARALLEL DO DEFAULT(SHARED)
 C$OMP$PRIVATE(ibox,jbox,i,nchild,istart,iend,npts)
 C$OMP$SCHEDULE(DYNAMIC)
@@ -1108,7 +1143,7 @@ C$    time1=omp_get_wtime()
 
 
       
-      do 1300 ilev = max(npwlevel,0),nlevels
+      do 1300 ilev = nlevstart,nlevels
 C$OMP PARALLEL DO DEFAULT(SHARED)
 C$OMP$PRIVATE(ibox,jbox,istart,iend,npts,i)
 C$OMP$SCHEDULE(DYNAMIC)
@@ -1169,7 +1204,7 @@ C$    time2=omp_get_wtime()
 C$    time1=omp_get_wtime()
 
 
-      do 1400 ilev = max(npwlevel,0),nlevels-1
+      do 1400 ilev = nlevstart,nlevels-1
 C$OMP PARALLEL DO DEFAULT(SHARED)
 C$OMP$PRIVATE(ibox,jbox,i,nchild,istart,iend,npts)
 C$OMP$SCHEDULE(DYNAMIC)
@@ -1229,7 +1264,7 @@ C$    time1=omp_get_wtime()
 
 
       
-      do 1500 ilev = max(npwlevel,0),nlevels
+      do 1500 ilev = nlevstart,nlevels
 C$OMP PARALLEL DO DEFAULT(SHARED)
 C$OMP$PRIVATE(ibox,istart,iend,i,npts)
 C$OMP$SCHEDULE(DYNAMIC)
@@ -1248,54 +1283,130 @@ c              do nothing here
                   nptssrc = iends-istarts+1
 
                   if (nptssrc + nptstarg .gt. 0) then
-c                    convert SOE expansions to local expansions
-                     call g2dsoe2local_vec(nd,nlocal(ilev),nsoe,s2l,
-     1                   rmlexp(iaddr(3,ibox)),rmlexp(iaddr(5,ibox)))
-c                    convert SOE/X expansions to local expansions
-                     call g2dsx2local_vec(nd,nlocal(ilev),npw,nsoe,
-     1                   x2l,s2l,rmlexp(iaddr(4,ibox)),
-     2                   rmlexp(iaddr(5,ibox)))
+                     if (ilev .eq. npwlevel .and.
+     1                   nlocal(ilev) .gt. nlocalswitch) then
+c                       evaluate soe and sx expansions at targets
+                        if(ifpghtarg.eq.1) then
+                           call g2dsevalp_vec(nd,delta,centers(1,ibox),
+     1                         nsoe,ws,ts,rmlexp(iaddr(3,ibox)),
+     2                         targetsort(1,istartt),
+     3                         nptstarg,pottarg(1,istartt))
+                           call g2dsxevalp_vec(nd,delta,centers(1,ibox),
+     1                         npw,wx,tx,nsoehalf,ws,ts,
+     2                         rmlexp(iaddr(4,ibox)),
+     3                         targetsort(1,istartt),
+     4                         nptstarg,pottarg(1,istartt))
+                        endif
+                        if(ifpghtarg.eq.2) then
+                           call g2dsevalg_vec(nd,delta,centers(1,ibox),
+     1                         nsoe,ws,ts,rmlexp(iaddr(3,ibox)),
+     2                         targetsort(1,istartt),nptstarg,
+     3                         pottarg(1,istartt),gradtarg(1,1,istartt))
+                           call g2dsxevalg_vec(nd,delta,centers(1,ibox),
+     1                         npw,wx,tx,nsoehalf,ws,ts,
+     2                         rmlexp(iaddr(4,ibox)),
+     3                         targetsort(1,istartt),nptstarg,
+     3                         pottarg(1,istartt),gradtarg(1,1,istartt))
+                        endif                        
+                        if(ifpghtarg.eq.3) then
+                           call g2dsevalh_vec(nd,delta,centers(1,ibox),
+     1                         nsoe,ws,ts,rmlexp(iaddr(3,ibox)),
+     2                         targetsort(1,istartt),nptstarg,
+     3                         pottarg(1,istartt),gradtarg(1,1,istartt),
+     4                         hesstarg(1,1,istartt))
+                           call g2dsxevalh_vec(nd,delta,centers(1,ibox),
+     1                         npw,wx,tx,nsoehalf,ws,ts,
+     2                         rmlexp(iaddr(4,ibox)),
+     3                         targetsort(1,istartt),nptstarg,
+     4                         pottarg(1,istartt),gradtarg(1,1,istartt),
+     5                         hesstarg(1,1,istartt))
+                        endif                        
+c                       evaluate soe and sx expansions at sources
+                        if(ifpgh.eq.1) then
+                           call g2dsevalp_vec(nd,delta,centers(1,ibox),
+     1                         nsoe,ws,ts,rmlexp(iaddr(3,ibox)),
+     2                         sourcesort(1,istarts),nptssrc,
+     3                         pot(1,istarts))
+                           call g2dsxevalp_vec(nd,delta,centers(1,ibox),
+     1                         npw,wx,tx,nsoehalf,ws,ts,
+     2                         rmlexp(iaddr(4,ibox)),
+     3                         sourcesort(1,istarts),nptssrc,
+     4                         pot(1,istarts))
+                        endif
+                        if(ifpgh.eq.2) then
+                           call g2dsevalg_vec(nd,delta,centers(1,ibox),
+     1                         nsoe,ws,ts,rmlexp(iaddr(3,ibox)),
+     2                         sourcesort(1,istarts),nptssrc,
+     3                         pot(1,istarts),grad(1,1,istarts))
+                           call g2dsxevalg_vec(nd,delta,centers(1,ibox),
+     1                         npw,wx,tx,nsoehalf,ws,ts,
+     2                         rmlexp(iaddr(4,ibox)),
+     3                         sourcesort(1,istarts),nptssrc,
+     4                         pot(1,istarts),grad(1,1,istarts))
+                        endif
+                        if(ifpgh.eq.3) then
+                           call g2dsevalh_vec(nd,delta,centers(1,ibox),
+     1                         nsoe,ws,ts,rmlexp(iaddr(3,ibox)),
+     2                         sourcesort(1,istarts),nptssrc,
+     3                         pot(1,istarts),grad(1,1,istarts),
+     4                         hess(1,1,istarts))
+                           call g2dsxevalh_vec(nd,delta,centers(1,ibox),
+     1                         npw,wx,tx,nsoehalf,ws,ts,
+     2                         rmlexp(iaddr(4,ibox)),
+     3                         sourcesort(1,istarts),nptssrc,
+     4                         pot(1,istarts),grad(1,1,istarts),
+     5                         hess(1,1,istarts))
+                        endif
+                     else
+c                       convert SOE expansions to local expansions
+                        call g2dsoe2local_vec(nd,nlocal(ilev),nsoe,s2l,
+     1                      rmlexp(iaddr(3,ibox)),rmlexp(iaddr(5,ibox)))
+c                       convert SOE/X expansions to local expansions
+                        call g2dsx2local_vec(nd,nlocal(ilev),npw,nsoe,
+     1                      x2l,s2l,rmlexp(iaddr(4,ibox)),
+     2                      rmlexp(iaddr(5,ibox)))
 
-c                    evaluate local expansion at targets
-                     if(ifpghtarg.eq.1) then
-                        call g2dlevalp_vec(nd,delta,centers(1,ibox),
-     1                      nlocal(ilev),rmlexp(iaddr(5,ibox)),
-     2                      targetsort(1,istartt),
-     3                      nptstarg,pottarg(1,istartt))
-                     endif
-                     if(ifpghtarg.eq.2) then
-                        call g2dlevalg_vec(nd,delta,centers(1,ibox),
-     1                      nlocal(ilev),rmlexp(iaddr(5,ibox)),
-     2                      targetsort(1,istartt),nptstarg,
-     3                      pottarg(1,istartt),gradtarg(1,1,istartt))
-                     endif
-                     if(ifpghtarg.eq.3) then
-                        call g2dlevalh_vec(nd,delta,centers(1,ibox),
-     1                      nlocal(ilev),rmlexp(iaddr(5,ibox)),
-     2                      targetsort(1,istartt),nptstarg,
-     3                      pottarg(1,istartt),gradtarg(1,1,istartt),
-     4                      hesstarg(1,1,istartt))
-                     endif
+c                       evaluate local expansion at targets
+                        if(ifpghtarg.eq.1) then
+                           call g2dlevalp_vec(nd,delta,centers(1,ibox),
+     1                         nlocal(ilev),rmlexp(iaddr(5,ibox)),
+     2                         targetsort(1,istartt),
+     3                         nptstarg,pottarg(1,istartt))
+                        endif
+                        if(ifpghtarg.eq.2) then
+                           call g2dlevalg_vec(nd,delta,centers(1,ibox),
+     1                         nlocal(ilev),rmlexp(iaddr(5,ibox)),
+     2                         targetsort(1,istartt),nptstarg,
+     3                         pottarg(1,istartt),gradtarg(1,1,istartt))
+                        endif
+                        if(ifpghtarg.eq.3) then
+                           call g2dlevalh_vec(nd,delta,centers(1,ibox),
+     1                         nlocal(ilev),rmlexp(iaddr(5,ibox)),
+     2                         targetsort(1,istartt),nptstarg,
+     3                         pottarg(1,istartt),gradtarg(1,1,istartt),
+     4                         hesstarg(1,1,istartt))
+                        endif
 c     
-c                    evaluate local expansion at sources
-                     if(ifpgh.eq.1) then
-                        call g2dlevalp_vec(nd,delta,centers(1,ibox),
-     1                      nlocal(ilev),rmlexp(iaddr(5,ibox)),
-     2                      sourcesort(1,istarts),nptssrc,
-     3                      pot(1,istarts))
-                     endif
-                     if(ifpgh.eq.2) then
-                        call g2dlevalg_vec(nd,delta,centers(1,ibox),
-     1                      nlocal(ilev),rmlexp(iaddr(5,ibox)),
-     2                      sourcesort(1,istarts),nptssrc,
-     3                      pot(1,istarts),grad(1,1,istarts))
-                     endif
-                     if(ifpgh.eq.3) then
-                        call g2dlevalh_vec(nd,delta,centers(1,ibox),
-     1                      nlocal(ilev),rmlexp(iaddr(5,ibox)),
-     2                      sourcesort(1,istarts),nptssrc,
-     3                      pot(1,istarts),grad(1,1,istarts),
-     4                      hess(1,1,istarts))
+c                       evaluate local expansion at sources
+                        if(ifpgh.eq.1) then
+                           call g2dlevalp_vec(nd,delta,centers(1,ibox),
+     1                         nlocal(ilev),rmlexp(iaddr(5,ibox)),
+     2                         sourcesort(1,istarts),nptssrc,
+     3                         pot(1,istarts))
+                        endif
+                        if(ifpgh.eq.2) then
+                           call g2dlevalg_vec(nd,delta,centers(1,ibox),
+     1                         nlocal(ilev),rmlexp(iaddr(5,ibox)),
+     2                         sourcesort(1,istarts),nptssrc,
+     3                         pot(1,istarts),grad(1,1,istarts))
+                        endif
+                        if(ifpgh.eq.3) then
+                           call g2dlevalh_vec(nd,delta,centers(1,ibox),
+     1                         nlocal(ilev),rmlexp(iaddr(5,ibox)),
+     2                         sourcesort(1,istarts),nptssrc,
+     3                         pot(1,istarts),grad(1,1,istarts),
+     4                         hess(1,1,istarts))
+                        endif
                      endif
                   endif
                endif

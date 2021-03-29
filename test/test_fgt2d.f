@@ -56,7 +56,7 @@ c
 c      
 c     n = 1,2,3 bad cases
 c      
-      n = -4
+      n = -2
       delta = bb*bb/(1.5*1.5)*2.0d0**n
 
       
@@ -80,8 +80,8 @@ c        nonuniform distribution of sources
          sources(1,i) = (rin + rwig*cos(thet))*cos(thet)
          sources(2,i) = (rin + rwig*cos(thet))*sin(thet)
 
-cccc         sources(1,i) = hkrand(0)
-cccc         sources(2,i) = hkrand(0)
+         sources(1,i) = hkrand(0)
+         sources(2,i) = hkrand(0)
 
          rnormal(1,i) = hkrand(0)
          rnormal(2,i) = hkrand(0)
@@ -112,6 +112,9 @@ ccc         targ(2,i) = 0.52d0
 
       nts = min(20,nsrc)
       ntt = min(20,ntarg)
+      
+cccc      nts = min(200,nsrc)
+cccc      ntt = min(200,ntarg)
 
       allocate(potex(nts),gradex(2,nts),hessex(3,nts))
       allocate(pottargex(ntt),gradtargex(2,ntt),hesstargex(3,ntt))
@@ -122,9 +125,9 @@ c
       call dzero(pottargex,ntt)
 
       ifcharge = 1
-      ifdipole = 1
-      ifpgh = 3
-      ifpghtarg = 3
+      ifdipole = 0
+      ifpgh = 1
+      ifpghtarg = 0
       call prinf(' ifcharge is *',ifcharge,1)
       call prinf(' ifdipole is *',ifdipole,1)
       call prinf(' ifpgh is *',ifpgh,1)
@@ -135,9 +138,9 @@ c
      1    ifdipole,rnormal,dipstr,iper,ifpgh,pot,grad,hess,
      2    ntarg,targ,ifpghtarg,pottarg,gradtarg,
      3    hesstarg)
-      call prin2('pottarg=*',pottarg,ntt)
-      call prin2('gradtarg=*',gradtarg,2*ntt)
-      call prin2('hesstarg=*',hesstarg,3*ntt)
+cccc      call prin2('pottarg=*',pottarg,ntt)
+cccc      call prin2('gradtarg=*',gradtarg,2*ntt)
+cccc      call prin2('hesstarg=*',hesstarg,3*ntt)
 
 cccc      write(6,*) 'pot is',(pot(i),i=1,nts)
 cccc      write(6,*) 'gradx is',(grad(1,i),i=1,nts)
@@ -155,9 +158,10 @@ cccc      write(6,*) 'gradexy is',(gradex(2,i),i=1,nts)
       call fgt2dpart_direct_vec(1,delta,reps,1,nsrc,1,ntt,sources,
      1    ifcharge,charges,ifdipole,rnormal,dipstr,
      2    targ,ifpghtarg,pottargex,gradtargex,hesstargex)
-      call prin2('pottargex=*',pottargex,ntt)
-      call prin2('gradtargex=*',gradtargex,2*ntt)
-      call prin2('hesstargex=*',hesstargex,3*ntt)
+cccc      call prin2('pottargex=*',pottargex,ntt)
+cccc      call prin2('gradtargex=*',gradtargex,2*ntt)
+cccc      call prin2('hesstargex=*',hesstargex,3*ntt)
+      
 cccc      write(6,*) 'pottarg is',(pottarg(i),i=1,ntt)
 cccc      write(6,*) 'pottargex is',(pottargex(i),i=1,ntt)
 
