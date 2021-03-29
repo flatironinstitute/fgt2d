@@ -389,7 +389,458 @@ C
 C evaluate SOE/X expansions (potential, pot + grad, pot + grad + hess)
 C
 C*********************************************************************
+C
+C
+c
+C
+C
+C
       subroutine g2dsxevalp_vec(nd,delta,center,npw,wx,tx,nns,
+     1              ws,ts,sxall,targ,ntarg,pot)
+C
+C     This subroutine evaluates the hybrid SOE/plane wave 
+C     expansions about CENTER at location TARG
+C     potential only
+C
+C     INPUT
+C
+c     nd            = vector length (for multiple charges at same locations)
+C     delta         = Gaussian variance
+C     charge        = strength of sources
+C     center        = center of the expansion
+C     npw           = number of Fourier plane waves
+C     wx,tx         = planewave weights and nodes
+C     nns           = number of SOE terms (half of
+C                     full quadrature - no complex conjugates)
+C     sxall         = hybrid SX expansions in order px,mx,xp,xm
+C     targ          = target
+C     ws,ts         = SOE weights and nodes
+C
+C     OUTPUT:
+C     pot           = potential (or vectorized potentials) incremented
+C     grad          = gradient (or vectorized gradients) incremented
+C
+      implicit none
+      integer nd,nns,npw,ntarg
+      real *8 delta,center(2),targ(2,ntarg)
+      real *8 pot(nd,ntarg)
+      
+      real *8 wx(-npw:npw),tx(-npw:npw)
+      complex *16 ws(nns),ts(nns)
+      complex *16 sxall(4*(2*npw+1)*nns,nd)
+
+      integer i,ind,j1,j2,j,nexp,itarg,k
+      real *8 x,y,dsq
+      complex *16 eye
+      complex *16 qqx,qqy,qq1,qq2
+      
+      complex *16 ww1p(100),ww2p(100),ww1m(100),ww2m(100)
+      
+      complex *16 ww1(-100:100)
+      complex *16 ww2(-100:100)
+
+      complex *16 z
+      complex *16 c(0:3)
+C
+      eye = dcmplx(0,1)
+      dsq = 1.0D0/dsqrt(delta)
+C
+      nexp = (2*npw+1)*nns
+      
+      do itarg=1,ntarg
+         x = (targ(1,itarg) - center(1))*dsq
+         y = (targ(2,itarg) - center(2))*dsq
+
+         qqx = cdexp(eye*tx(1)*x)
+         qqy = cdexp(eye*tx(1)*y)
+         qq1 = 1.0d0
+         qq2 = 1.0d0
+         
+         ww1(0) = 1
+         ww2(0) = 1
+
+         do j1=1,npw
+            qq1 = qq1*qqx
+            qq2 = qq2*qqy
+            ww1(j1) = qq1
+            ww2(j1) = qq2
+            ww1(-j1) = dconjg(ww1(j1))
+            ww2(-j1) = dconjg(ww2(j1))
+         enddo
+c
+         do j1=1,nns
+            ww1p(j1) = cdexp(-ts(j1)*x)
+            ww2p(j1) = cdexp(-ts(j1)*y)
+            ww1m(j1) = 1/ww1p(j1)
+            ww2m(j1) = 1/ww2p(j1)
+         enddo
+c
+         do ind = 1,nd
+            j = 0
+            z=0
+            do j1=1,nns
+               do k=0,3
+                  c(k)=0
+               enddo
+               do j2=-npw,npw
+                  j = j+1
+                  c(0)=c(0)+sxall(j,ind)*ww2(j2)
+                  c(1)=c(1)+sxall(nexp+j,ind)*ww2(j2)
+                  c(2)=c(2)+sxall(2*nexp+j,ind)*ww1(j2)
+                  c(3)=c(3)+sxall(3*nexp+j,ind)*ww1(j2)
+               enddo
+               z=z+c(0)*ww1p(j1)+c(1)*ww1m(j1)
+     1            +c(2)*ww2p(j1)+c(3)*ww2m(j1)
+            enddo
+            
+            pot(ind,itarg) = pot(ind,itarg)+dreal(z)
+         enddo
+      enddo
+c
+      return
+      end
+C
+C
+c
+C
+C
+C      
+      subroutine g2dsxevalg_vec(nd,delta,center,npw,wx,tx,nns,
+     1              ws,ts,sxall,targ,ntarg,pot,grad)
+C
+C     This subroutine evaluates the hybrid SOE/plane wave 
+C     expansions about CENTER at location TARG
+C     potential + gradient
+C
+C     INPUT
+C
+c     nd            = vector length (for multiple charges at same locations)
+C     delta         = Gaussian variance
+C     charge        = strength of sources
+C     center        = center of the expansion
+C     npw           = number of Fourier plane waves
+C     wx,tx         = planewave weights and nodes
+C     nns           = number of SOE terms (half of
+C                     full quadrature - no complex conjugates)
+C     sxall         = hybrid SX expansions in order px,mx,xp,xm
+C     targ          = target
+C     ws,ts         = SOE weights and nodes
+C
+C     OUTPUT:
+C     pot           = potential (or vectorized potentials) incremented
+C     grad          = gradient (or vectorized gradients) incremented
+C
+      implicit none
+      integer nd,nns,npw,ntarg
+      real *8 delta,center(2),targ(2,ntarg)
+      real *8 pot(nd,ntarg),grad(nd,2,ntarg)
+      
+      real *8 wx(-npw:npw),tx(-npw:npw)
+      complex *16 ws(nns),ts(nns)
+      complex *16 sxall(4*(2*npw+1)*nns,nd)
+
+      integer i,ind,j1,j2,j,nexp,itarg,k
+      real *8 x,y,dsq
+      complex *16 eye
+      complex *16 qqx,qqy,qq1,qq2
+      
+      complex *16 ww1p(100),ww2p(100),ww1m(100),ww2m(100)
+      complex *16 ww1px(100),ww2py(100),ww1mx(100),ww2my(100)
+      
+      complex *16 ww1(-100:100),ww1x(-100:100)
+      complex *16 ww2(-100:100),ww2y(-100:100)
+
+      complex *16 z,zx,zy
+      complex *16 c(0:3),cx(0:3),cy(0:3)
+C
+      eye = dcmplx(0,1)
+      dsq = 1.0D0/dsqrt(delta)
+C
+      nexp = (2*npw+1)*nns
+      
+      do itarg=1,ntarg
+         x = (targ(1,itarg) - center(1))*dsq
+         y = (targ(2,itarg) - center(2))*dsq
+
+         qqx = cdexp(eye*tx(1)*x)
+         qqy = cdexp(eye*tx(1)*y)
+         qq1 = 1.0d0
+         qq2 = 1.0d0
+         
+         ww1(0) = 1
+         ww2(0) = 1
+         ww1x(0)= 0
+         ww2y(0)= 0
+
+         do j1=1,npw
+            qq1 = qq1*qqx
+            qq2 = qq2*qqy
+            
+            ww1(j1) = qq1
+            ww2(j1) = qq2
+            ww1x(j1)= eye*tx(j1)*dsq*ww1(j1)
+            ww2y(j1)= eye*tx(j1)*dsq*ww2(j1)
+            
+            ww1(-j1) = dconjg(ww1(j1))
+            ww2(-j1) = dconjg(ww2(j1))
+            ww1x(-j1)= dconjg(ww1x(j1))
+            ww2y(-j1)= dconjg(ww2y(j1))
+         enddo
+c
+         do j1=1,nns
+            ww1p(j1) = cdexp(-ts(j1)*x)
+            ww2p(j1) = cdexp(-ts(j1)*y)
+            ww1m(j1) = 1/ww1p(j1)
+            ww2m(j1) = 1/ww2p(j1)
+
+            ww1px(j1) = -ts(j1)*dsq*ww1p(j1)
+            ww2py(j1) = -ts(j1)*dsq*ww2p(j1)
+            ww1mx(j1) =  ts(j1)*dsq*ww1m(j1) 
+            ww2my(j1) =  ts(j1)*dsq*ww2m(j1)
+         enddo
+c
+         do ind = 1,nd
+            j = 0
+            z=0
+            zx=0
+            zy=0
+            do j1=1,nns
+               do k=0,3
+                  c(k)=0
+                  cx(k)=0
+                  cy(k)=0
+               enddo
+               do j2=-npw,npw
+                  j = j+1
+                  c(0)=c(0)+sxall(j,ind)*ww2(j2)
+                  c(1)=c(1)+sxall(nexp+j,ind)*ww2(j2)
+                  c(2)=c(2)+sxall(2*nexp+j,ind)*ww1(j2)
+                  c(3)=c(3)+sxall(3*nexp+j,ind)*ww1(j2)
+
+cccc                  cx(0)=cx(0)+sxall(j,ind)*ww2(j2)
+cccc                  cx(1)=cx(1)+sxall(nexp+j,ind)*ww2(j2)
+                  cx(2)=cx(2)+sxall(2*nexp+j,ind)*ww1x(j2)
+                  cx(3)=cx(3)+sxall(3*nexp+j,ind)*ww1x(j2)
+
+                  cy(0)=cy(0)+sxall(j,ind)*ww2y(j2)
+                  cy(1)=cy(1)+sxall(nexp+j,ind)*ww2y(j2)
+cccc                  cy(2)=cy(2)+sxall(2*nexp+j,ind)*ww1(j2)
+cccc                  cy(3)=cy(3)+sxall(3*nexp+j,ind)*ww1(j2)
+               enddo
+               z=z+c(0)*ww1p(j1)+c(1)*ww1m(j1)
+     1          +c(2)*ww2p(j1)+c(3)*ww2m(j1)
+               zx=zx+c(0)*ww1px(j1)+c(1)*ww1mx(j1)
+     1           +cx(2)*ww2p(j1)+cx(3)*ww2m(j1)
+               zy=zy+cy(0)*ww1p(j1)+cy(1)*ww1m(j1)
+     1           +c(2)*ww2py(j1)+c(3)*ww2my(j1)
+            enddo
+            
+            pot(ind,itarg) = pot(ind,itarg)+dreal(z)
+            grad(ind,1,itarg) = grad(ind,1,itarg)+dreal(zx)
+            grad(ind,2,itarg) = grad(ind,2,itarg)+dreal(zy)
+         enddo
+      enddo
+c
+      return
+      end
+C
+C
+c
+C
+C
+C      
+      subroutine g2dsxevalh_vec(nd,delta,center,npw,wx,tx,nns,
+     1              ws,ts,sxall,targ,ntarg,pot,grad,hess)
+C
+C     This subroutine evaluates the hybrid SOE/plane wave 
+C     expansions about CENTER at location TARG
+C     potential + gradient + hessian
+C
+C     INPUT
+C
+c     nd            = vector length (for multiple charges at same locations)
+C     delta         = Gaussian variance
+C     charge        = strength of sources
+C     center        = center of the expansion
+C     npw           = number of Fourier plane waves
+C     wx,tx         = planewave weights and nodes
+C     nns           = number of SOE terms (half of
+C                     full quadrature - no complex conjugates)
+C     sxall         = hybrid SX expansions in order px,mx,xp,xm
+C     targ          = target
+C     ws,ts         = SOE weights and nodes
+C
+C     OUTPUT:
+C     pot           = potential (or vectorized potentials) incremented
+C     grad          = gradient (or vectorized gradients) incremented
+C     hess          = Hessian (or vectorized Hessians) incremented
+C
+      implicit none
+      integer nd,nns,npw,ntarg
+      real *8 delta,center(2),targ(2,ntarg)
+      real *8 pot(nd,ntarg),grad(nd,2,ntarg),hess(nd,3,ntarg)
+      
+      real *8 wx(-npw:npw),tx(-npw:npw)
+      complex *16 ws(nns),ts(nns)
+      complex *16 sxall(4*(2*npw+1)*nns,nd)
+
+      integer i,ind,j1,j2,j,nexp,itarg,k
+      real *8 x,y,dsq
+      complex *16 eye
+      complex *16 qqx,qqy,qq1,qq2
+      
+      complex *16 ww1p(100),ww2p(100),ww1m(100),ww2m(100)
+      complex *16 ww1px(100),ww2py(100),ww1mx(100),ww2my(100)
+      complex *16 ww1pxx(100),ww2pyy(100),ww1mxx(100),ww2myy(100)
+      
+      complex *16 ww1(-100:100),ww1x(-100:100),ww1xx(-100:100)
+      complex *16 ww2(-100:100),ww2y(-100:100),ww2yy(-100:100)
+
+      complex *16 z,zx,zy,zxx,zxy,zyy
+      complex *16 c(0:3),cx(0:3),cy(0:3),cxx(0:3),cxy(0:3),cyy(0:3)
+C
+      eye = dcmplx(0,1)
+      dsq = 1.0D0/dsqrt(delta)
+C
+      nexp = (2*npw+1)*nns
+      
+      do itarg=1,ntarg
+         x = (targ(1,itarg) - center(1))*dsq
+         y = (targ(2,itarg) - center(2))*dsq
+
+         qqx = cdexp(eye*tx(1)*x)
+         qqy = cdexp(eye*tx(1)*y)
+         qq1 = 1.0d0
+         qq2 = 1.0d0
+         
+         ww1(0) = 1
+         ww2(0) = 1
+         ww1x(0)=0
+         ww2y(0)=0
+         ww1xx(0)=0
+         ww2yy(0)=0
+
+         do j1=1,npw
+            qq1 = qq1*qqx
+            qq2 = qq2*qqy
+            
+            ww1(j1) = qq1
+            ww2(j1) = qq2
+            ww1x(j1)= eye*tx(j1)*dsq*ww1(j1)
+            ww2y(j1)= eye*tx(j1)*dsq*ww2(j1)
+            
+            ww1(-j1) = dconjg(ww1(j1))
+            ww2(-j1) = dconjg(ww2(j1))
+            ww1x(-j1)= dconjg(ww1x(j1))
+            ww2y(-j1)= dconjg(ww2y(j1))
+            
+            ww1xx(j1)= eye*tx(j1)*dsq*ww1x(j1)
+            ww2yy(j1)= eye*tx(j1)*dsq*ww2y(j1)
+            ww1xx(-j1)= dconjg(ww1xx(j1))
+            ww2yy(-j1)= dconjg(ww2yy(j1))
+         enddo
+c
+         do j1=1,nns
+            ww1p(j1) = cdexp(-ts(j1)*x)
+            ww2p(j1) = cdexp(-ts(j1)*y)
+            ww1m(j1) = 1/ww1p(j1)
+            ww2m(j1) = 1/ww2p(j1)
+
+            ww1px(j1) = -ts(j1)*dsq*ww1p(j1)
+            ww2py(j1) = -ts(j1)*dsq*ww2p(j1)
+            ww1mx(j1) =  ts(j1)*dsq*ww1m(j1) 
+            ww2my(j1) =  ts(j1)*dsq*ww2m(j1)
+c
+            ww1pxx(j1) = -ts(j1)*dsq*ww1px(j1)
+            ww2pyy(j1) = -ts(j1)*dsq*ww2py(j1)
+            ww1mxx(j1) =  ts(j1)*dsq*ww1mx(j1) 
+            ww2myy(j1) =  ts(j1)*dsq*ww2my(j1)
+         enddo
+ccccc
+         do ind = 1,nd
+            j = 0
+            z=0
+            zx=0
+            zy=0
+            zxx=0
+            zxy=0
+            zyy=0
+            do j1=1,nns
+               do k=0,3
+                  c(k)=0
+                  cx(k)=0
+                  cy(k)=0
+                  cxx(k)=0
+cccc                  cxy(k)=0
+                  cyy(k)=0
+               enddo
+               do j2=-npw,npw
+                  j = j+1
+                  c(0)=c(0)+sxall(j,ind)*ww2(j2)
+                  c(1)=c(1)+sxall(nexp+j,ind)*ww2(j2)
+                  c(2)=c(2)+sxall(2*nexp+j,ind)*ww1(j2)
+                  c(3)=c(3)+sxall(3*nexp+j,ind)*ww1(j2)
+
+cccc                  cx(0)=cx(0)+sxall(j,ind)*ww2(j2)
+cccc                  cx(1)=cx(1)+sxall(nexp+j,ind)*ww2(j2)
+                  cx(2)=cx(2)+sxall(2*nexp+j,ind)*ww1x(j2)
+                  cx(3)=cx(3)+sxall(3*nexp+j,ind)*ww1x(j2)
+
+                  cy(0)=cy(0)+sxall(j,ind)*ww2y(j2)
+                  cy(1)=cy(1)+sxall(nexp+j,ind)*ww2y(j2)
+cccc                  cy(2)=cy(2)+sxall(2*nexp+j,ind)*ww1(j2)
+cccc                  cy(3)=cy(3)+sxall(3*nexp+j,ind)*ww1(j2)
+                  
+cccc                  cxx(0)=cxx(0)+sxall(j,ind)*ww2(j2)
+cccc                  cxx(1)=cxx(1)+sxall(nexp+j,ind)*ww2(j2)
+                  cxx(2)=cxx(2)+sxall(2*nexp+j,ind)*ww1xx(j2)
+                  cxx(3)=cxx(3)+sxall(3*nexp+j,ind)*ww1xx(j2)
+
+cccc                  cxy(0)=cxy(0)+sxall(j,ind)*ww2y(j2)
+cccc                  cxy(1)=cxy(1)+sxall(nexp+j,ind)*ww2y(j2)
+cccc                  cxy(2)=cxy(2)+sxall(2*nexp+j,ind)*ww1x(j2)
+cccc                  cxy(3)=cxy(3)+sxall(3*nexp+j,ind)*ww1x(j2)
+
+                  cyy(0)=cyy(0)+sxall(j,ind)*ww2yy(j2)
+                  cyy(1)=cyy(1)+sxall(nexp+j,ind)*ww2yy(j2)
+cccc                  cyy(2)=cyy(2)+sxall(2*nexp+j,ind)*ww1(j2)
+cccc                  cyy(3)=cyy(3)+sxall(3*nexp+j,ind)*ww1(j2)
+               enddo
+               z=z+c(0)*ww1p(j1)+c(1)*ww1m(j1)
+     1             +c(2)*ww2p(j1)+c(3)*ww2m(j1)
+               zx=zx+c(0)*ww1px(j1)+c(1)*ww1mx(j1)
+     1             +cx(2)*ww2p(j1)+cx(3)*ww2m(j1)
+               zy=zy+cy(0)*ww1p(j1)+cy(1)*ww1m(j1)
+     1             +c(2)*ww2py(j1)+c(3)*ww2my(j1)
+               zxx=zxx+c(0)*ww1pxx(j1)+c(1)*ww1mxx(j1)
+     1             +cxx(2)*ww2p(j1)+cxx(3)*ww2m(j1)
+               zxy=zxy+cy(0)*ww1px(j1)+cy(1)*ww1mx(j1)
+     1             +cx(2)*ww2py(j1)+cx(3)*ww2my(j1)
+               zyy=zyy+cyy(0)*ww1p(j1)+cyy(1)*ww1m(j1)
+     1             +c(2)*ww2pyy(j1)+c(3)*ww2myy(j1)
+            enddo
+            
+            pot(ind,itarg) = pot(ind,itarg)+dreal(z)
+            grad(ind,1,itarg) = grad(ind,1,itarg)+dreal(zx)
+            grad(ind,2,itarg) = grad(ind,2,itarg)+dreal(zy)
+            hess(ind,1,itarg) = hess(ind,1,itarg)+dreal(zxx)
+            hess(ind,2,itarg) = hess(ind,2,itarg)+dreal(zxy)
+            hess(ind,3,itarg) = hess(ind,3,itarg)+dreal(zyy)
+         enddo
+      enddo
+c
+      return
+      end
+C
+C
+c
+C
+Ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+C      
+C     deprecated subroutines, maybe suitable for vecotrized version
+C      
+Cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc      
+      subroutine g2dsxevalp0_vec(nd,delta,center,npw,wx,tx,nns,
      1              ws,ts,spall,targ,ntarg,pot)
 C
 C     This subroutine evaluates the hybrid SOE/plane wave 
@@ -491,7 +942,7 @@ c
 C
 C
 C
-      subroutine g2dsxevalg_vec(nd,delta,center,npw,wx,tx,nns,
+      subroutine g2dsxevalg0_vec(nd,delta,center,npw,wx,tx,nns,
      1              ws,ts,sxall,targ,ntarg,pot,grad)
 C
 C     This subroutine evaluates the hybrid SOE/plane wave 
@@ -634,13 +1085,11 @@ c
 c
       return
       end
-C
-C
-c
-C
-C
-C
-      subroutine g2dsxevalh_vec(nd,delta,center,npw,wx,tx,nns,
+c      
+c      
+c      
+c      
+      subroutine g2dsxevalh0_vec(nd,delta,center,npw,wx,tx,nns,
      1              ws,ts,sxall,targ,ntarg,pot,grad,hess)
 C
 C     This subroutine evaluates the hybrid SOE/plane wave 

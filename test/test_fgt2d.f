@@ -56,7 +56,7 @@ c
 c      
 c     n = 1,2,3 bad cases
 c      
-      n = -2
+      n = -3
       delta = bb*bb/(1.5*1.5)*2.0d0**n
 
       
@@ -69,19 +69,19 @@ c
       allocate(pot(nsrc),grad(2,nsrc),hess(3,nsrc))
       allocate(pottarg(ntarg),gradtarg(2,ntarg),hesstarg(3,ntarg))
 
-      rin = 0.5d0
-      rwig = 0.3d0
+      rin = 0.3d0
+      rwig = 0.15d0
       nwig = 10
       
       do i=1,nsrc
          
          thet = hkrand(0)*2*pi
 c        nonuniform distribution of sources
-         sources(1,i) = (rin + rwig*cos(thet))*cos(thet)
-         sources(2,i) = (rin + rwig*cos(thet))*sin(thet)
+         sources(1,i) = (rin + rwig*cos(thet))*cos(thet)+0.5d0
+         sources(2,i) = (rin + rwig*cos(thet))*sin(thet)+0.5d0
 
-         sources(1,i) = hkrand(0)
-         sources(2,i) = hkrand(0)
+cccc         sources(1,i) = hkrand(0)
+cccc         sources(2,i) = hkrand(0)
 
          rnormal(1,i) = hkrand(0)
          rnormal(2,i) = hkrand(0)
@@ -113,21 +113,21 @@ ccc         targ(2,i) = 0.52d0
       nts = min(20,nsrc)
       ntt = min(20,ntarg)
       
-cccc      nts = min(200,nsrc)
-cccc      ntt = min(200,ntarg)
+cccc      nts = min(1000,nsrc)
+cccc      ntt = min(1000,ntarg)
 
       allocate(potex(nts),gradex(2,nts),hessex(3,nts))
       allocate(pottargex(ntt),gradtargex(2,ntt),hesstargex(3,ntt))
 
-      eps = 0.5d-12
+      eps = 0.5d-10
 c
       call dzero(potex,nts)
       call dzero(pottargex,ntt)
 
       ifcharge = 1
-      ifdipole = 0
-      ifpgh = 1
-      ifpghtarg = 0
+      ifdipole = 1
+      ifpgh = 3
+      ifpghtarg = 3
       call prinf(' ifcharge is *',ifcharge,1)
       call prinf(' ifdipole is *',ifdipole,1)
       call prinf(' ifpgh is *',ifpgh,1)

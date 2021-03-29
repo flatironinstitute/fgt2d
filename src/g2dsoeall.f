@@ -382,28 +382,24 @@ C
 C     pot           = potential (or vectorized potentials) incremented
 C
       implicit none
-      integer nterms,nd,nn,i,ind,j1,j2,j,nexp,itarg,ntarg
+      integer nd,nn,ntarg
       real *8 center(2),targ(2,ntarg)
-      real *8 x,y,pot(nd,ntarg),delta,pmax,dsq
-      complex *16, allocatable :: sumz(:)
-      complex *16 soeall(4*nn*nn/2,nd)
+      real *8 pot(nd,ntarg),delta
       complex *16 ws(nn),ts(nn)
+      complex *16 soeall(4*nn*nn/2,nd)
+
+      integer i,ind,j1,j2,j,nexp,itarg
+      real *8 x,y,dsq
       complex *16 ww1p(100),ww2p(100),ww1m(100),ww2m(100)
       complex *16 cd, z0,z1,z2,z3
-      complex *16, allocatable :: wtall(:)
 C
 C     initialize coefficients to zero.
 C
-cccc      allocate(wtall(4*nn*nn/2))
-cccc      allocate(sumz(nd))
       dsq = 1.0D0/dsqrt(delta)
 C
       nexp = nn*nn/2
       
       do itarg = 1,ntarg
-cccc         do ind = 1,nd
-cccc            sumz(ind) = 0.0d0
-cccc         enddo
 c
          x = (targ(1,itarg) - center(1))*dsq
          y = (targ(2,itarg) - center(2))*dsq
@@ -418,28 +414,6 @@ c
             ww2m(nn/2+j1) = dconjg(ww2m(j1))
          enddo
 c
-cccc         j = 0
-cccc         do j1=1,nn/2
-cccc         do j2=1,nn
-cccc            j = j+1
-cccc            wtall(j) = ww1p(j1)*ww2p(j2)
-cccc            wtall(nexp+j) = ww1p(j1)*ww2m(j2)
-cccc            wtall(2*nexp+j) = ww1m(j1)*ww2p(j2)
-cccc            wtall(3*nexp+j) = ww1m(j1)*ww2m(j2)
-cccc         enddo
-cccc         enddo
-ccccc
-cccc         do ind=1,nd
-cccc         do j=1,4*nn*nn/2
-cccc               sumz(ind) = sumz(ind) +
-cccc     1         wtall(j)*soeall(j,ind)
-cccc         enddo
-cccc         enddo
-ccccc
-cccc         do ind = 1,nd
-cccc            pot(ind,itarg) = pot(ind,itarg)+dble(sumz(ind))/2
-cccc         enddo
-
          do ind=1,nd
             cd = 0
             j = 0
@@ -468,6 +442,355 @@ C
 C
 C
       subroutine g2dsevalg_vec(nd,delta,center,nn,ws,ts,soeall,
+     1              targ,ntarg,pot,grad)
+C
+C     This subroutine evaluates all SOE expansions soeall about
+C     CENTER at location TARG
+C
+C     INPUT
+C
+c     nd            = vector length (for vector input)
+C     delta         = Gaussian variance
+C     center        = center of the expansion
+C     nn            = number of exponentials 
+C     soeall     = all four (unrolled) SOE expansions are incremented
+c                     in the order: pp,pm,mp,mm  
+C     targ          = target location
+C     ws,ts         = SOE weights and nodes
+C
+C     OUTPUT:
+C
+C     pot           = potential (or vectorized potentials) incremented
+C     grad          = gradient (or vectorized gradients) incremented
+C
+      implicit none
+      integer nd,nn,ntarg
+      real *8 center(2),targ(2,ntarg)
+      real *8 pot(nd,ntarg),grad(nd,2,ntarg)
+      complex *16 ws(nn),ts(nn)
+      complex *16 soeall(4*nn*nn/2,nd)
+
+      integer i,ind,j1,j2,j,nexp,itarg,k
+      real *8 x,y,delta,dsq
+      
+      complex *16 ww1p(100),ww2p(100),ww1m(100),ww2m(100)
+      complex *16 ww1px(100),ww2py(100),ww1mx(100),ww2my(100)
+
+      complex *16 s,sx,sy
+      complex *16 d(0:3),dy(0:3)
+      
+C
+      nexp = nn*nn/2
+      dsq = 1.0D0/dsqrt(delta)
+C
+      do itarg = 1,ntarg
+c
+         x = (targ(1,itarg) - center(1))*dsq
+         y = (targ(2,itarg) - center(2))*dsq
+         do j1=1,nn/2
+c
+            ww1p(j1) = cdexp(-ts(j1)*x)
+            ww2p(j1) = cdexp(-ts(j1)*y)
+            ww1m(j1) = 1/ww1p(j1)
+            ww2m(j1) = 1/ww2p(j1)
+c
+            ww1px(j1) = -ts(j1)*dsq*ww1p(j1)
+            ww2py(j1) = -ts(j1)*dsq*ww2p(j1)
+            ww1mx(j1) =  ts(j1)*dsq*ww1m(j1) 
+            ww2my(j1) =  ts(j1)*dsq*ww2m(j1)
+c
+            ww1p(nn/2+j1) = dconjg(ww1p(j1))
+            ww2p(nn/2+j1) = dconjg(ww2p(j1))
+            ww1m(nn/2+j1) = dconjg(ww1m(j1))
+            ww2m(nn/2+j1) = dconjg(ww2m(j1))
+c
+            ww1px(nn/2+j1) = dconjg(ww1px(j1))
+            ww2py(nn/2+j1) = dconjg(ww2py(j1))
+            ww1mx(nn/2+j1) = dconjg(ww1mx(j1))
+            ww2my(nn/2+j1) = dconjg(ww2my(j1))
+c
+         enddo
+c
+         do ind = 1,nd
+            j = 0
+            s=0
+            sx=0
+            sy=0
+            do j1=1,nn/2
+               do k=0,3
+                  d(k)=0
+                  dy(k)=0
+               enddo
+               do j2=1,nn
+                  j = j+1
+                  d(0)=d(0)+soeall(j,ind)*ww2p(j2)
+                  d(1)=d(1)+soeall(nexp+j,ind)*ww2m(j2)
+                  d(2)=d(2)+soeall(2*nexp+j,ind)*ww2p(j2)
+                  d(3)=d(3)+soeall(3*nexp+j,ind)*ww2m(j2)
+
+                  dy(0)=dy(0)+soeall(j,ind)*ww2py(j2)
+                  dy(1)=dy(1)+soeall(nexp+j,ind)*ww2my(j2)
+                  dy(2)=dy(2)+soeall(2*nexp+j,ind)*ww2py(j2)
+                  dy(3)=dy(3)+soeall(3*nexp+j,ind)*ww2my(j2)
+               enddo
+               s=s+(d(0)+d(1))*ww1p(j1)
+     1          +(d(2)+d(3))*ww1m(j1)
+               sx=sx+(d(0)+d(1))*ww1px(j1)
+     1           +(d(2)+d(3))*ww1mx(j1)
+               sy=sy+(dy(0)+dy(1))*ww1p(j1)
+     1           +(dy(2)+dy(3))*ww1m(j1)
+            enddo
+            
+            pot(ind,itarg) = pot(ind,itarg)+dreal(s)/2
+            grad(ind,1,itarg) = grad(ind,1,itarg)+dreal(sx)/2
+            grad(ind,2,itarg) = grad(ind,2,itarg)+dreal(sy)/2
+         enddo
+      enddo
+      
+      return
+      end
+C
+C
+c
+c
+c
+      subroutine g2dsevalh_vec(nd,delta,center,nn,ws,ts,soeall,
+     1              targ,ntarg,pot,grad,hess)
+C
+C     This subroutine evaluates all SOE expansions soeall about
+C     CENTER at location TARG
+C
+C     INPUT
+C
+c     nd            = vector length (for vector input)
+C     delta         = Gaussian variance
+C     center        = center of the expansion
+C     nn            = number of exponentials 
+C     soeall     = all four (unrolled) SOE expansions are incremented
+c                     in the order: pp,pm,mp,mm  
+C     targ          = target location
+C     ws,ts         = SOE weights and nodes
+C
+C     OUTPUT:
+C
+C     pot           = potential (or vectorized potentials) incremented
+C     grad          = gradient (or vectorized gradients) incremented
+C     hess          = Hessian (or vectorized Hessians) incremented
+C
+      implicit none
+      integer nd,nn,ntarg
+      real *8 center(2),targ(2,ntarg)
+      real *8 pot(nd,ntarg),grad(nd,2,ntarg),hess(nd,3,ntarg)
+      complex *16 ws(nn),ts(nn)
+      complex *16 soeall(4*nn*nn/2,nd)
+
+      integer i,ind,j1,j2,j,nexp,itarg,k
+      real *8 x,y,delta,dsq
+      
+      complex *16 ww1p(100),ww2p(100),ww1m(100),ww2m(100)
+      complex *16 ww1px(100),ww2py(100),ww1mx(100),ww2my(100)
+      complex *16 ww1pxx(100),ww2pyy(100),ww1mxx(100),ww2myy(100)
+
+      complex *16 s,sx,sy,sxx,sxy,syy
+      complex *16 d(0:3),dy(0:3),dyy(0:3)
+      
+C
+      nexp = nn*nn/2
+      dsq = 1.0D0/dsqrt(delta)
+C
+      do itarg = 1,ntarg
+c
+         x = (targ(1,itarg) - center(1))*dsq
+         y = (targ(2,itarg) - center(2))*dsq
+         do j1=1,nn/2
+c
+            ww1p(j1) = cdexp(-ts(j1)*x)
+            ww2p(j1) = cdexp(-ts(j1)*y)
+            ww1m(j1) = 1/ww1p(j1)
+            ww2m(j1) = 1/ww2p(j1)
+c
+            ww1px(j1) = -ts(j1)*dsq*ww1p(j1)
+            ww2py(j1) = -ts(j1)*dsq*ww2p(j1)
+            ww1mx(j1) =  ts(j1)*dsq*ww1m(j1) 
+            ww2my(j1) =  ts(j1)*dsq*ww2m(j1)
+c
+            ww1p(nn/2+j1) = dconjg(ww1p(j1))
+            ww2p(nn/2+j1) = dconjg(ww2p(j1))
+            ww1m(nn/2+j1) = dconjg(ww1m(j1))
+            ww2m(nn/2+j1) = dconjg(ww2m(j1))
+c
+            ww1px(nn/2+j1) = dconjg(ww1px(j1))
+            ww2py(nn/2+j1) = dconjg(ww2py(j1))
+            ww1mx(nn/2+j1) = dconjg(ww1mx(j1))
+            ww2my(nn/2+j1) = dconjg(ww2my(j1))
+c
+            ww1pxx(j1) = -ts(j1)*dsq*ww1px(j1)
+            ww2pyy(j1) = -ts(j1)*dsq*ww2py(j1)
+            ww1mxx(j1) =  ts(j1)*dsq*ww1mx(j1) 
+            ww2myy(j1) =  ts(j1)*dsq*ww2my(j1)
+c
+            ww1pxx(nn/2+j1) = dconjg(ww1pxx(j1))
+            ww2pyy(nn/2+j1) = dconjg(ww2pyy(j1))
+            ww1mxx(nn/2+j1) = dconjg(ww1mxx(j1))
+            ww2myy(nn/2+j1) = dconjg(ww2myy(j1))
+         enddo
+c
+         do ind = 1,nd
+            j = 0
+            s=0
+            sx=0
+            sy=0
+            sxx=0
+            sxy=0
+            syy=0
+            do j1=1,nn/2
+               do k=0,3
+                  d(k)=0
+                  dy(k)=0
+                  dyy(k)=0
+               enddo
+               do j2=1,nn
+                  j = j+1
+                  d(0)=d(0)+soeall(j,ind)*ww2p(j2)
+                  d(1)=d(1)+soeall(nexp+j,ind)*ww2m(j2)
+                  d(2)=d(2)+soeall(2*nexp+j,ind)*ww2p(j2)
+                  d(3)=d(3)+soeall(3*nexp+j,ind)*ww2m(j2)
+
+                  dy(0)=dy(0)+soeall(j,ind)*ww2py(j2)
+                  dy(1)=dy(1)+soeall(nexp+j,ind)*ww2my(j2)
+                  dy(2)=dy(2)+soeall(2*nexp+j,ind)*ww2py(j2)
+                  dy(3)=dy(3)+soeall(3*nexp+j,ind)*ww2my(j2)
+                  
+                  dyy(0)=dyy(0)+soeall(j,ind)*ww2pyy(j2)
+                  dyy(1)=dyy(1)+soeall(nexp+j,ind)*ww2myy(j2)
+                  dyy(2)=dyy(2)+soeall(2*nexp+j,ind)*ww2pyy(j2)
+                  dyy(3)=dyy(3)+soeall(3*nexp+j,ind)*ww2myy(j2)
+               enddo
+               s=s+(d(0)+d(1))*ww1p(j1)
+     1          +(d(2)+d(3))*ww1m(j1)
+               sx=sx+(d(0)+d(1))*ww1px(j1)
+     1           +(d(2)+d(3))*ww1mx(j1)
+               sy=sy+(dy(0)+dy(1))*ww1p(j1)
+     1           +(dy(2)+dy(3))*ww1m(j1)
+               sxx=sxx+(d(0)+d(1))*ww1pxx(j1)
+     1            +(d(2)+d(3))*ww1mxx(j1)
+               sxy=sxy+(dy(0)+dy(1))*ww1px(j1)
+     1            +(dy(2)+dy(3))*ww1mx(j1)
+               syy=syy+(dyy(0)+dyy(1))*ww1p(j1)
+     1            +(dyy(2)+dyy(3))*ww1m(j1)
+            enddo
+            
+            pot(ind,itarg) = pot(ind,itarg)+dreal(s)/2
+            grad(ind,1,itarg) = grad(ind,1,itarg)+dreal(sx)/2
+            grad(ind,2,itarg) = grad(ind,2,itarg)+dreal(sy)/2
+            hess(ind,1,itarg) = hess(ind,1,itarg)+dreal(sxx)/2
+            hess(ind,2,itarg) = hess(ind,2,itarg)+dreal(sxy)/2
+            hess(ind,3,itarg) = hess(ind,3,itarg)+dreal(syy)/2
+         enddo
+      enddo
+      
+      return
+      end
+C
+C
+c
+ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+c
+c deprecated subroutines, maybe suitable for vectorized subroutines     
+c     with nd = 1, they slower by a factor of 2 or more.
+c
+cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc      
+      subroutine g2dsevalp0_vec(nd,delta,center,nn,ws,ts,soeall,
+     1              targ,ntarg,pot)
+C
+C     This subroutine evaluates all SOE expansions about
+C     CENT at location TARG.
+C
+C     INPUT
+C
+c     nd            = vector length (for vector input)
+C     delta         = Gaussian variance
+C     center        = center of the expansion
+C     nn            = number of exponentials 
+C     soeall        = all four (unrolled) SOE expansions are incremented
+c                     in the order: pp,pm,mp,mm  
+C     targ          = target location
+C     ws,ts         = SOE weights and nodes
+C
+C     OUTPUT:
+C
+C     pot           = potential (or vectorized potentials) incremented
+C
+      implicit none
+      integer nd,nn,ntarg
+      real *8 center(2),targ(2,ntarg)
+      real *8 pot(nd,ntarg),delta
+      complex *16 ws(nn),ts(nn)
+      complex *16 soeall(4*nn*nn/2,nd)
+
+      integer i,ind,j1,j2,j,nexp,itarg
+      real *8 x,y,dsq
+      complex *16 ww1p(100),ww2p(100),ww1m(100),ww2m(100)
+      
+      complex *16, allocatable :: sumz(:)
+      complex *16, allocatable :: wtall(:)
+C
+C     initialize coefficients to zero.
+C
+      allocate(wtall(4*nn*nn/2))
+      allocate(sumz(nd))
+      dsq = 1.0D0/dsqrt(delta)
+C
+      nexp = nn*nn/2
+      
+      do itarg = 1,ntarg
+         do ind = 1,nd
+            sumz(ind) = 0.0d0
+         enddo
+c
+         x = (targ(1,itarg) - center(1))*dsq
+         y = (targ(2,itarg) - center(2))*dsq
+         do j1=1,nn/2
+            ww1p(j1) = cdexp(-ts(j1)*x)
+            ww2p(j1) = cdexp(-ts(j1)*y)
+            ww1m(j1) = 1/ww1p(j1)
+            ww2m(j1) = 1/ww2p(j1)
+            ww1p(nn/2+j1) = dconjg(ww1p(j1))
+            ww2p(nn/2+j1) = dconjg(ww2p(j1))
+            ww1m(nn/2+j1) = dconjg(ww1m(j1))
+            ww2m(nn/2+j1) = dconjg(ww2m(j1))
+         enddo
+c
+         j = 0
+         do j1=1,nn/2
+         do j2=1,nn
+            j = j+1
+            wtall(j) = ww1p(j1)*ww2p(j2)
+            wtall(nexp+j) = ww1p(j1)*ww2m(j2)
+            wtall(2*nexp+j) = ww1m(j1)*ww2p(j2)
+            wtall(3*nexp+j) = ww1m(j1)*ww2m(j2)
+         enddo
+         enddo
+c
+         do ind=1,nd
+         do j=1,4*nn*nn/2
+               sumz(ind) = sumz(ind) +
+     1         wtall(j)*soeall(j,ind)
+         enddo
+         enddo
+c
+         do ind = 1,nd
+            pot(ind,itarg) = pot(ind,itarg)+dble(sumz(ind))/2
+         enddo
+      enddo
+
+      return
+      end
+c      
+c      
+c      
+c      
+      subroutine g2dsevalg0_vec(nd,delta,center,nn,ws,ts,soeall,
      1              targ,ntarg,pot,grad)
 C
 C     This subroutine evaluates all SOE expansions about
@@ -591,7 +914,7 @@ C
 C
 C
 C
-      subroutine g2dsevalh_vec(nd,delta,center,nn,ws,ts,soeall,
+      subroutine g2dsevalh0_vec(nd,delta,center,nn,ws,ts,soeall,
      1              targ,ntarg,pot,grad,hess)
 C
 C     This subroutine evaluates all SOE expansions soeall about
