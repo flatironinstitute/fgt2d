@@ -113,7 +113,7 @@ c
 cc      temporary variables
 c
       integer i,ilev,lmptmp,idim
-      integer nlocal0,npw,nsoe,nadd,ifprint,ier
+      integer nlocal0,npw,nsoe,nadd,ifprint,ier,nlevstart
       real *8 omp_get_wtime
       real *8 time1,time2,pi,done,pmax,bs0,cen0(2),bsize
 
@@ -173,8 +173,10 @@ c     1. determine the maximum level - it seems that the best strategy for point
 c     is to stop refinement as long as the Hermite expansion length is less
 c     than 20 for high precision calculation
       nlmax = npwlevel + 4
-      bsize = bs0
-      do i = 0,100
+      nlevstart=max(npwlevel,0)
+      
+      bsize = bs0/2**nlevstart
+      do i = nlevstart,100
          call g2dhlterms(2,bsize,delta,eps,nlocal0)
          if (nlocal0 .le. 18) then
             nlmax = i
@@ -665,7 +667,7 @@ c
 c     temp variables
       integer i,j,k,l,idim,ip,isx,ii,j1,j2
       integer ibox,jbox,ilev,npts,nptssrc,nptstarg
-      integer nchild,ncoll
+      integer nchild,ncoll,nb
 
       integer mnlist1,mnlist2,mnlist3,mnlist4
       integer nlist1
@@ -1268,6 +1270,8 @@ C$    time1=omp_get_wtime()
 C$OMP PARALLEL DO DEFAULT(SHARED)
 C$OMP$PRIVATE(ibox,istart,iend,i,npts)
 C$OMP$SCHEDULE(DYNAMIC)
+         call cpu_time(t1)
+         nb=0
          do ibox = laddr(1,ilev),laddr(2,ilev)
             if (ilev .eq. npwlevel .and. iflocal(ibox).eq.0) then
 c              do nothing here
@@ -1283,11 +1287,13 @@ c              do nothing here
                   nptssrc = iends-istarts+1
 
                   if (nptssrc + nptstarg .gt. 0) then
+                     nb=nb+1
                      if (ilev .eq. npwlevel .and.
      1                   nlocal(ilev) .gt. nlocalswitch) then
 cccc                     if (nlocal(ilev) .gt. nlocalswitch) then
-c                       evaluate soe and sx expansions at targets
-                        if(nptstarg.gt.0 .and. ifpghtarg.eq.1) then
+c                        evaluate soe and sx expansions at targets
+                        if (nptstarg.gt.0) then
+                        if (ifpghtarg.eq.1) then
                            call g2dsevalp_vec(nd,delta,centers(1,ibox),
      1                         nsoe,ws,ts,rmlexp(iaddr(3,ibox)),
      2                         targetsort(1,istartt),
@@ -1298,7 +1304,7 @@ c                       evaluate soe and sx expansions at targets
      3                         targetsort(1,istartt),
      4                         nptstarg,pottarg(1,istartt))
                         endif
-                        if(nptstarg.gt.0 .and. ifpghtarg.eq.2) then
+                        if (ifpghtarg.eq.2) then
                            call g2dsevalg_vec(nd,delta,centers(1,ibox),
      1                         nsoe,ws,ts,rmlexp(iaddr(3,ibox)),
      2                         targetsort(1,istartt),nptstarg,
@@ -1309,7 +1315,7 @@ c                       evaluate soe and sx expansions at targets
      3                         targetsort(1,istartt),nptstarg,
      3                         pottarg(1,istartt),gradtarg(1,1,istartt))
                         endif                        
-                        if(nptstarg.gt.0 .and. ifpghtarg.eq.3) then
+                        if (ifpghtarg.eq.3) then
                            call g2dsevalh_vec(nd,delta,centers(1,ibox),
      1                         nsoe,ws,ts,rmlexp(iaddr(3,ibox)),
      2                         targetsort(1,istartt),nptstarg,
@@ -1321,9 +1327,12 @@ c                       evaluate soe and sx expansions at targets
      3                         targetsort(1,istartt),nptstarg,
      4                         pottarg(1,istartt),gradtarg(1,1,istartt),
      5                         hesstarg(1,1,istartt))
-                        endif                        
+                        endif
+                        endif
 c                       evaluate soe and sx expansions at sources
-                        if(nptssrc.gt.0 .and. ifpgh.eq.1) then
+
+                        if (nptssrc.gt.0) then
+                        if (ifpgh.eq.1) then
                            call g2dsevalp_vec(nd,delta,centers(1,ibox),
      1                         nsoe,ws,ts,rmlexp(iaddr(3,ibox)),
      2                         sourcesort(1,istarts),nptssrc,
@@ -1334,7 +1343,7 @@ c                       evaluate soe and sx expansions at sources
      3                         sourcesort(1,istarts),nptssrc,
      4                         pot(1,istarts))
                         endif
-                        if(nptssrc.gt.0 .and. ifpgh.eq.2) then
+                        if (ifpgh.eq.2) then
                            call g2dsevalg_vec(nd,delta,centers(1,ibox),
      1                         nsoe,ws,ts,rmlexp(iaddr(3,ibox)),
      2                         sourcesort(1,istarts),nptssrc,
@@ -1345,7 +1354,7 @@ c                       evaluate soe and sx expansions at sources
      3                         sourcesort(1,istarts),nptssrc,
      4                         pot(1,istarts),grad(1,1,istarts))
                         endif
-                        if(nptssrc.gt.0 .and. ifpgh.eq.3) then
+                        if (ifpgh.eq.3) then
                            call g2dsevalh_vec(nd,delta,centers(1,ibox),
      1                         nsoe,ws,ts,rmlexp(iaddr(3,ibox)),
      2                         sourcesort(1,istarts),nptssrc,
@@ -1358,7 +1367,7 @@ c                       evaluate soe and sx expansions at sources
      4                         pot(1,istarts),grad(1,1,istarts),
      5                         hess(1,1,istarts))
                         endif
-
+                        endif
 cccc                        if (nptstarg .gt. 0) then
 cccc                           call fgt2dpart_direct_vec(nd,delta,eps/90,
 cccc     1                         istarts,iends,istartt,iendt,sourcesort,
@@ -1384,51 +1393,57 @@ c                       convert SOE/X expansions to local expansions
      2                      rmlexp(iaddr(5,ibox)))
 
 c                       evaluate local expansion at targets
-                        if(nptstarg.gt.0 .and. ifpghtarg.eq.1) then
+                        if(nptstarg.gt.0) then
+                        if (ifpghtarg.eq.1) then
                            call g2dlevalp_vec(nd,delta,centers(1,ibox),
      1                         nlocal(ilev),rmlexp(iaddr(5,ibox)),
      2                         targetsort(1,istartt),
      3                         nptstarg,pottarg(1,istartt))
                         endif
-                        if(nptstarg.gt.0 .and. ifpghtarg.eq.2) then
+                        if (ifpghtarg.eq.2) then
                            call g2dlevalg_vec(nd,delta,centers(1,ibox),
      1                         nlocal(ilev),rmlexp(iaddr(5,ibox)),
      2                         targetsort(1,istartt),nptstarg,
      3                         pottarg(1,istartt),gradtarg(1,1,istartt))
                         endif
-                        if(nptstarg.gt.0 .and. ifpghtarg.eq.3) then
+                        if (ifpghtarg.eq.3) then
                            call g2dlevalh_vec(nd,delta,centers(1,ibox),
      1                         nlocal(ilev),rmlexp(iaddr(5,ibox)),
      2                         targetsort(1,istartt),nptstarg,
      3                         pottarg(1,istartt),gradtarg(1,1,istartt),
      4                         hesstarg(1,1,istartt))
                         endif
+                        endif
 c     
 c                       evaluate local expansion at sources
-                        if(nptssrc.gt.0 .and. ifpgh.eq.1) then
+                        if (nptssrc.gt.0) then
+                        if (ifpgh.eq.1) then
                            call g2dlevalp_vec(nd,delta,centers(1,ibox),
      1                         nlocal(ilev),rmlexp(iaddr(5,ibox)),
      2                         sourcesort(1,istarts),nptssrc,
      3                         pot(1,istarts))
                         endif
-                        if(nptssrc.gt.0 .and. ifpgh.eq.2) then
+                        if (ifpgh.eq.2) then
                            call g2dlevalg_vec(nd,delta,centers(1,ibox),
      1                         nlocal(ilev),rmlexp(iaddr(5,ibox)),
      2                         sourcesort(1,istarts),nptssrc,
      3                         pot(1,istarts),grad(1,1,istarts))
                         endif
-                        if(nptssrc.gt.0 .and. ifpgh.eq.3) then
+                        if (ifpgh.eq.3) then
                            call g2dlevalh_vec(nd,delta,centers(1,ibox),
      1                         nlocal(ilev),rmlexp(iaddr(5,ibox)),
      2                         sourcesort(1,istarts),nptssrc,
      3                         pot(1,istarts),grad(1,1,istarts),
      4                         hess(1,1,istarts))
                         endif
+                        endif
                      endif
                   endif
                endif
             endif
          enddo
+         call cpu_time(t2)
+         print*, ilev, nb, t2-t1
 C$OMP END PARALLEL DO        
  1500 continue
 

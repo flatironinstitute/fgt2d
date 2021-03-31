@@ -12,7 +12,7 @@ CXX = g++
 FC = gfortran
 FFLAGS = -fPIC -O3 -march=native -funroll-loops -std=legacy
 # -pg -no-pie is for profiling
-#FFLAGS = -fPIC -O3 -march=native -funroll-loops -std=legacy -pg -no-pie
+FFLAGS = -fPIC -O3 -march=native -funroll-loops -std=legacy -pg -no-pie
 
 # extra flags for multithreaded: C/Fortran, MATLAB
 OMPFLAGS =-fopenmp
