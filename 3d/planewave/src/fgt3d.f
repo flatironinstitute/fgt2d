@@ -767,23 +767,27 @@ c     get planewave nodes and weights
       call get_pwnodes(pmax,npw,ws,ts)
 
 c     compute translation matrices for PW expansions
-      xmin  = boxsize(nlevels)/sqrt(delta)
-      xmin2 = xmin/2
+      nlevstart = max(npwlevel,0)
 
-      nmax = nlevels-max(npwlevel,0)+1
+
+      nexp = npw*npw*npw/2
+      
+      nmax = 1
       allocate(wpwshift(npw/2,npw,npw,-nmax:nmax,-nmax:nmax,-nmax:nmax))
+      xmin  = boxsize(nlevstart)/sqrt(delta)
       call pw_translation_matrices(xmin,npw,nmax,
      1    wpwshift,ts)
 
       nmax = nlevels-max(npwlevel,0)      
       allocate(wpwmsshift(npw/2,npw,npw,8,nmax))
+      xmin2 = boxsize(nlevels)/sqrt(delta)/2
       call merge_split_pw_matrices(xmin2,npw,nmax,
      1    wpwmsshift,ts)
 c     xmin is used in shiftpw subroutines to
 c     determine the right translation matrices
 c      
-      xmin  = boxsize(nlevels)
-      xmin2 = xmin/2
+      xmin  = boxsize(nlevstart)
+      xmin2 = boxsize(nlevels)/2
 c
 c     1d translation matrices
 c
@@ -871,7 +875,6 @@ c
 
 cccc      call prinf('laddr=*',laddr,2*(nlevels+1))
 
-      nlevstart = max(npwlevel,0)
       
       if(ifprint .ge. 1) 
      $   call prinf('=== STEP 1 (form mp) ====*',i,0)
@@ -917,9 +920,6 @@ c                 Hermite exp to PW exp
                   call g3dh2pw_vec(nd,ntermsh(ilev),npw,h2x,
 cccc                  call g3dh2pw_real_vec(nd,ntermsh(ilev),npw,rh2x,
      2                hexp,rmlexp(iaddr(1,ibox)))
-c                 copy the multipole PW exp into local PW exp
-                  call g3dcopypwexp_vec(nd,npw,rmlexp(iaddr(1,ibox)),
-     1                rmlexp(iaddr(2,ibox)))
                endif
             enddo
 C$OMP END PARALLEL DO 
@@ -945,9 +945,6 @@ c                 Hermite exp to PW exp
                   call g3dh2pw_vec(nd,ntermsh(ilev),npw,h2x,
 cccc                  call g3dh2pw_real_vec(nd,ntermsh(ilev),npw,rh2x,                  
      1                hexp,rmlexp(iaddr(1,ibox)))
-c                 copy the multipole PW exp into local PW exp
-                  call g3dcopypwexp_vec(nd,npw,rmlexp(iaddr(1,ibox)),
-     1                rmlexp(iaddr(2,ibox)))
                endif
             enddo
 C$OMP END PARALLEL DO 
@@ -973,9 +970,6 @@ c                 Hermite exp to PW expansions
                   call g3dh2pw_vec(nd,ntermsh(ilev),npw,h2x,
 cccc                  call g3dh2pw_real_vec(nd,ntermsh(ilev),npw,rh2x,
      1                hexp,rmlexp(iaddr(1,ibox)))
-c                 copy the multipole PW exp into local PW exp
-                  call g3dcopypwexp_vec(nd,npw,rmlexp(iaddr(1,ibox)),
-     1                rmlexp(iaddr(2,ibox)))
                endif
             enddo
 C     $OMP END PARALLEL DO
@@ -1034,7 +1028,7 @@ C$OMP$SCHEDULE(DYNAMIC)
                  k=8
               endif
 
-              call g3dshiftpw_vec(nd,npw,rmlexp(iaddr(1,jbox)),
+              call g3dshiftpw_vec(nd,nexp,rmlexp(iaddr(1,jbox)),
      1            rmlexp(iaddr(1,ibox)),
      2            wpwmsshift(1,1,1,k,klev))
 cccc              call g3dshiftpw0_vec(nd,delta,npw,
@@ -1061,7 +1055,7 @@ c       expansions
       call cpu_time(time1)
 C$    time1=omp_get_wtime()
       
-      do 1300 ilev = nlevstart,nlevels
+      do 1300 ilev = nlevstart,nlevstart
          klev = nlevels-ilev+1
 C$OMP PARALLEL DO DEFAULT(SHARED)
 C$OMP$PRIVATE(ibox,jbox,istart,iend,npts,i)
@@ -1090,28 +1084,14 @@ c
               jy= nint((centers(2,ibox) - centers(2,jbox))/xmin)
               jz= nint((centers(3,ibox) - centers(3,jbox))/xmin)
 
-              if (jx .lt. 0) then
-                 jx = -klev
-              elseif (jx .gt. 0) then
-                 jx = klev
-              endif
-              if (jy .lt. 0) then
-                 jy = -klev
-              elseif (jy .gt. 0) then
-                 jy = klev
-              endif
-              if (jz .lt. 0) then
-                 jz = -klev
-              elseif (jz .gt. 0) then
-                 jz = klev
-              endif
-
-              call g3dshiftpw_vec(nd,npw,rmlexp(iaddr(1,jbox)),
+              call g3dshiftpw_vec(nd,nexp,rmlexp(iaddr(1,jbox)),
      1            rmlexp(iaddr(2,ibox)),wpwshift(1,1,1,jx,jy,jz))
 cccc              call g3dshiftpw0_vec(nd,delta,npw,
 cccc     1            rmlexp(iaddr(1,jbox)),centers(1,jbox),
 cccc     1            rmlexp(iaddr(2,ibox)),centers(1,ibox),ws,ts)
-            enddo
+           enddo
+           call g3dcopypwexp_vec(nd,nexp,rmlexp(iaddr(1,ibox)),
+     1         rmlexp(iaddr(2,ibox)))
           endif
         enddo
 C$OMP END PARALLEL DO        
@@ -1175,7 +1155,7 @@ C$OMP$SCHEDULE(DYNAMIC)
               elseif (dx.lt.0 .and. dy.lt.0 .and. dz.lt.0) then
                  k=8
               endif
-              call g3dshiftpw_vec(nd,npw,rmlexp(iaddr(2,ibox)),
+              call g3dshiftpw_vec(nd,nexp,rmlexp(iaddr(2,ibox)),
      1            rmlexp(iaddr(2,jbox)),
      2            wpwmsshift(1,1,1,k,nlevels-ilev))
 cccc              call g3dshiftpw0_vec(nd,delta,npw,

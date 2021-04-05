@@ -745,24 +745,26 @@ c
 c     get planewave nodes and weights
       call get_pwnodes(pmax,npw,ws,ts)
 
-c     compute translation matrices for SOE and SOE/X expansions
-      xmin  = boxsize(nlevels)/sqrt(delta)
-      xmin2 = xmin/2
+c     compute translation matrices for PW expansions
 
-      nmax = nlevels-max(npwlevel,0)+1
+      nmax = 1
+      nexp=npw*npw/2
+      xmin  = boxsize(npwlevel)/sqrt(delta)
+      
       allocate(wpwshift(npw/2,npw,-nmax:nmax,-nmax:nmax))
       call pw_translation_matrices(xmin,npw,nmax,
      1    wpwshift,ts)
 
       nmax = nlevels-max(npwlevel,0)      
       allocate(wpwmsshift(npw/2,npw,4,nmax))
+      xmin2 = boxsize(nlevels)/sqrt(delta)/2
       call merge_split_pw_matrices(xmin2,npw,nmax,
      1    wpwmsshift,ts)
-c     xmin is used in shiftsoe and shiftsx subroutines to
+c     xmin is used in shiftpw subroutines to
 c     determine the right translation matrices
 c      
-      xmin  = boxsize(nlevels)
-      xmin2 = xmin/2
+      xmin  = boxsize(npwlevel)
+      xmin2 = boxsize(nlevels)/2
 c
 c     1d translation matrices
 c
@@ -897,9 +899,6 @@ c                 Hermite exp to PW exp
 cccc                  call g2dh2pw_vec(nd,ntermsh(ilev),npw,h2x,
                   call g2dh2pw_real_vec(nd,ntermsh(ilev),npw,rh2x,
      2                hexp,rmlexp(iaddr(1,ibox)))
-c                 copy the multipole PW exp into local PW exp
-                  call g2dcopypwexp_vec(nd,npw,rmlexp(iaddr(1,ibox)),
-     1                rmlexp(iaddr(2,ibox)))
                endif
             enddo
 C$OMP END PARALLEL DO 
@@ -925,9 +924,6 @@ c                 Hermite exp to PW exp
 cccc                  call g2dh2pw_vec(nd,ntermsh(ilev),npw,h2x,
                   call g2dh2pw_real_vec(nd,ntermsh(ilev),npw,rh2x,                  
      1                hexp,rmlexp(iaddr(1,ibox)))
-c                 copy the multipole PW exp into local PW exp
-                  call g2dcopypwexp_vec(nd,npw,rmlexp(iaddr(1,ibox)),
-     1                rmlexp(iaddr(2,ibox)))
                endif
             enddo
 C$OMP END PARALLEL DO 
@@ -953,9 +949,6 @@ c                 Hermite exp to PW expansions
 cccc                  call g2dh2pw_vec(nd,ntermsh(ilev),npw,h2x,
                   call g2dh2pw_real_vec(nd,ntermsh(ilev),npw,rh2x,
      1                hexp,rmlexp(iaddr(1,ibox)))
-c                 copy the multipole PW exp into local PW exp
-                  call g2dcopypwexp_vec(nd,npw,rmlexp(iaddr(1,ibox)),
-     1                rmlexp(iaddr(2,ibox)))
                endif
             enddo
 C     $OMP END PARALLEL DO
@@ -1025,12 +1018,12 @@ c
       if(ifprint.ge.1)
      $    call prinf('=== Step 3 (mp to loc) ===*',i,0)
 c      ... step 3, convert multipole expansions into local
-c       expansions
+c       expansions, which only needs to be done at the cutoff level
 
       call cpu_time(time1)
 C$    time1=omp_get_wtime()
       
-      do 1300 ilev = nlevstart,nlevels
+      do 1300 ilev = nlevstart,nlevstart
 C$OMP PARALLEL DO DEFAULT(SHARED)
 C$OMP$PRIVATE(ibox,jbox,istart,iend,npts,i)
 C$OMP$SCHEDULE(DYNAMIC)
@@ -1057,23 +1050,14 @@ c
               jx= nint((centers(1,ibox) - centers(1,jbox))/xmin)
               jy= nint((centers(2,ibox) - centers(2,jbox))/xmin)
 
-              if (jx .lt. 0) then
-                 jx = -(nlevels-ilev+1)
-              elseif (jx .gt. 0) then
-                 jx = nlevels-ilev+1
-              endif
-              if (jy .lt. 0) then
-                 jy = -(nlevels-ilev+1)
-              elseif (jy .gt. 0) then
-                 jy = nlevels-ilev+1
-              endif
-
               call g2dshiftpw_vec(nd,npw,rmlexp(iaddr(1,jbox)),
      1            rmlexp(iaddr(2,ibox)),wpwshift(1,1,jx,jy))
 cccc              call g2dshiftpw0_vec(nd,delta,npw,
 cccc     1            rmlexp(iaddr(1,jbox)),centers(1,jbox),
 cccc     1            rmlexp(iaddr(2,ibox)),centers(1,ibox),ws,ts)
-            enddo
+           enddo
+           call g2dcopypwexp_vec(nd,nexp,rmlexp(iaddr(1,ibox)),
+     1            rmlexp(iaddr(2,ibox)))
           endif
         enddo
 C$OMP END PARALLEL DO        

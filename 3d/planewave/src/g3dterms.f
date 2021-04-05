@@ -32,7 +32,7 @@ c     OUTPUT:
 c     nterms: number of terms in Taylor/Hermite expansion
 c      
       implicit real*8 (a-h,o-z)
-      integer nterms,p0
+      integer nterms,p0,p
       real*8 delta, bsize
 c
       e1 = exp(1.0d0)

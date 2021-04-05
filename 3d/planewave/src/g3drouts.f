@@ -2675,7 +2675,7 @@ C
 C      
 C      
 C                  
-      subroutine g3dshiftpw_vec(nd,nn,pwexp1,
+      subroutine g3dshiftpw_vec(nd,nexp,pwexp1,
      1              pwexp2,wshift)
 C
 C     This subroutine converts the PW expansion (pwexp1) about
@@ -2686,7 +2686,7 @@ C     INPUT
 C
 c     nd      = vector length (for vector input)
 C     delta   = Gaussian variance
-C     nn      = number of terms in PW expansion
+C     nexp      = number of terms in PW expansion
 C     pwexp1  = original expansion 
 C     wshift  = precomputed PW exp translation matrix 
 C
@@ -2695,13 +2695,12 @@ C
 C     pwexp2 = shifted expansion 
 C
       implicit none
-      integer nd,nn,j,ind,nexp
-      complex *16 pwexp1(nn*nn*nn/2,nd)
-      complex *16 pwexp2(nn*nn*nn/2,nd)
-      complex *16 wshift(nn*nn*nn/2)
+      integer nd,j,ind,nexp
+      complex *16 pwexp1(nexp,nd)
+      complex *16 pwexp2(nexp,nd)
+      complex *16 wshift(nexp)
 
 C
-      nexp = nn*nn*nn/2
       
       do ind=1,nd
          do j=1,nexp
@@ -2716,33 +2715,31 @@ c
 C
 c
 C
-      subroutine g3dcopypwexp_vec(nd,nn,pwexp1,
+      subroutine g3dcopypwexp_vec(nd,nexp,pwexp1,
      1              pwexp2)
 C
-C     This subroutine copy one PW expansion (pwexp1) 
-C     to an PW expansion (pwexp2).
+C     This subroutine adds one PW expansion (pwexp1) 
+C     to another PW expansion (pwexp2).
 C
 C     INPUT
 C
 c     nd      = vector length (for vector input)
-C     nn      = number of terms in PW expansion
+C     nexp      = number of terms in PW expansion
 C     pwexp1  = original expansion 
 C
 C     OUTPUT:
 C
-C     pwexp2 = copied expansion 
+C     pwexp2 = the pw expansion is incremented 
 C
       implicit none
-      integer nd,nn,j,ind,nexp
-      complex *16 pwexp1(nn*nn*nn/2,nd)
-      complex *16 pwexp2(nn*nn*nn/2,nd)
+      integer nd,j,ind,nexp
+      complex *16 pwexp1(nexp,nd)
+      complex *16 pwexp2(nexp,nd)
 
 C
-      nexp = nn*nn*nn/2
-      
       do ind=1,nd
          do j=1,nexp
-            pwexp2(j,ind) = pwexp1(j,ind)
+            pwexp2(j,ind) = pwexp2(j,ind) + pwexp1(j,ind)
          enddo
       enddo
 c

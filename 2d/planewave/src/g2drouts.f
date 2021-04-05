@@ -2404,11 +2404,11 @@ c
 C
 c
 C
-      subroutine g2dcopypwexp_vec(nd,nn,pwexp1,
+      subroutine g2dcopypwexp_vec(nd,nexp,pwexp1,
      1              pwexp2)
 C
-C     This subroutine copy one PW expansion (pwexp1) 
-C     to an PW expansion (pwexp2).
+C     This subroutine add one PW expansion (pwexp1) 
+C     to another PW expansion (pwexp2).
 C
 C     INPUT
 C
@@ -2418,19 +2418,17 @@ C     pwexp1  = original expansion
 C
 C     OUTPUT:
 C
-C     pwexp2 = copied expansion 
+C     pwexp2 = the expansion is incremented 
 C
       implicit none
       integer nd,nn,j,j1,j2,ind,nexp
-      complex *16 pwexp1(nn/2,nn,nd)
-      complex *16 pwexp2(nn/2,nn,nd)
+      complex *16 pwexp1(nexp,nd)
+      complex *16 pwexp2(nexp,nd)
 
 C
       do ind=1,nd
-         do j1=1,nn
-            do j2=1,nn/2
-               pwexp2(j2,j1,ind) = pwexp1(j2,j1,ind)
-            enddo
+         do j=1,nexp
+            pwexp2(j,ind) = pwexp2(j,ind)+pwexp1(j,ind)
          enddo
       enddo
 c
