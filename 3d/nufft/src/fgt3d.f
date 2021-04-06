@@ -162,7 +162,7 @@ c     it determines the speed of the algorithm when delta goes to zero.
 c     ndiv is the maximum number of points per box at or below the cutoff level
 c     it's determined by numerical experiments on finding the crossover point
 c     between direct evaluation and the fast scheme.
-      ndiv = 100
+      ndiv = 400
 c
       ifunif = 0
       iper = 0
@@ -214,7 +214,7 @@ c
      3    ltree,itree,iptr,tcenters,boxsize)
 cccc      write(6,*) ' boxsize',boxsize(0)
 cccc      write(6,*) ' cutoff length', boxsize(0)/2**npwlevel/sqrt(delta)
-      write(6,*) ' nperbox',ns*4/(3*nboxes)
+cccc      write(6,*) ' nperbox',ns*4/(3*nboxes)
 
       allocate(isrc(ns),isrcse(2,nboxes))
       allocate(itarg(nt),itargse(2,nboxes))
@@ -372,7 +372,7 @@ c     compute the length of plane wave expansion
       call g3dpwterms(bsize,delta,pweps,pmax,npw)
       
       call prinf(' nlocal =*',nlocal,nlevels+1)
-      call prinf(' ntermmax =*',ntermmax,1)
+cccc      call prinf(' ntermmax =*',ntermmax,1)
 cccc      call prin2(' pmax =*',pmax,1)
       call prinf(' npw =*',npw,1)
 c       
@@ -405,6 +405,7 @@ c     allocate memory need by multipole, local expansions at all levels
 c     
 c     irmlexp is pointer for workspace need by various expansions.
 c
+      print *, nlevels, npwlevel
       call g3dmpalloc(nd,itree,iaddr,
      1    nlevels,npwlevel,lmptot,
      2    ntermsh,nlocal,npw)
@@ -669,15 +670,16 @@ c
 
       integer ifprint
 
-      integer nexp,nmax
+      integer nexp,nmax,ncutlevbox
       
       integer nn,jx,jy,jz,nlevstart,nlevend
 
       real *8 d,time1,time2,omp_get_wtime
       real *8 dx,dy,dz
-      real *8 tt1,tt2,xmin,xmin2,t1,t2
+      real *8 tt1,tt2,xmin,xmin2,t1,t2,dt,dtt
       real *8 pottmp,gradtmp(2),hesstmp(3)
-
+      real *8 dmax
+      
       integer, allocatable :: ifhung(:),ifpwexp(:)
       integer ndirect
       
@@ -699,6 +701,9 @@ c
       ifprint=1
       pi = 4*atan(1.0d0)
 
+      ncutlevbox=laddr(2,npwlevel)-laddr(1,npwlevel)+1
+      write(6,*) ' n per box on the cutoff level',nsource/ncutlevbox      
+      
 
       nlevend=nlevels
       if (npwlevel.le.nlevels) nlevend=npwlevel
@@ -835,7 +840,6 @@ c
 c
 
 cccc      call prinf('laddr=*',laddr,2*(nlevels+1))
-
       
       if(ifprint .ge. 1) 
      $   call prinf('=== STEP 1 (form mp) ====*',i,0)
@@ -845,6 +849,9 @@ c
 c       ... step 1, form multipole pw expansions at the cutoff level
 c       
       do 1100 ilev = npwlevel,npwlevel
+         nb=0
+         dt=0
+         dtt=0
 C
          if(ifcharge.eq.1.and.ifdipole.eq.0) then
 C$OMP PARALLEL DO DEFAULT (SHARED)
@@ -857,11 +864,15 @@ C$OMP$SCHEDULE(DYNAMIC)
                npts = iend-istart+1
 c              Check if current box needs to form pw exp         
                if(npts.gt.ndiv) then
+                  nb=nb+1
+                  call cpu_time(t1)
 c                 form the pw expansion
                   call g3dformpwc_vec(nd,delta,eps,
      1                sourcesort(1,istart),npts,
      2                chargesort(1,istart),centers(1,ibox),
      3                npw,ws,ts,nexp,wnufft,rmlexp(iaddr(1,ibox)))
+                  call cpu_time(t2)
+                  dt=dt+t2-t1
 c                 copy the multipole PW exp into local PW exp
 c                 for self interaction 
                   call g3dcopypwexp_vec(nd,nexp,rmlexp(iaddr(1,ibox)),
@@ -919,6 +930,7 @@ c                 copy the multipole PW exp into local PW exp
             enddo
 C     $OMP END PARALLEL DO
          endif
+         print *, ilev, nb, dt
 c     end of ilev do loop
  1100 continue
 
@@ -1086,6 +1098,8 @@ C$    time2 = omp_get_wtime()
 c
 cc
       call cpu_time(time1)
+      dmax = log(1.0d0/eps)*delta
+      
 C$    time1=omp_get_wtime()  
       do 2000 ilev = 0,nlevend
 C$OMP PARALLEL DO DEFAULT(SHARED)
@@ -1113,14 +1127,14 @@ cccc              ibox is the target box
                   nptstarg = iendt-istartt + 1
 
                   if (nptstarg .gt. 0) then
-                     call fgt3dpart_direct_vec(nd,delta,eps,
+                     call fgt3dpart_direct_vec(nd,delta,dmax,
      1                   jstart,jend,istartt,iendt,sourcesort,
      2                   ifcharge,chargesort,
      3                   ifdipole,rnormalsort,dipstrsort,targetsort,
      4                   ifpghtarg,pottarg,gradtarg,hesstarg)
                   endif
                   if (nptssrc .gt. 0) then
-                     call fgt3dpart_direct_vec(nd,delta,eps,
+                     call fgt3dpart_direct_vec(nd,delta,dmax,
      1                   jstart,jend,istarts,iends,sourcesort,
      2                   ifcharge,chargesort,
      3                   ifdipole,rnormalsort,dipstrsort,sourcesort,
@@ -1151,7 +1165,7 @@ c
 c
 c
 c------------------------------------------------------------------     
-      subroutine fgt3dpart_direct_vec(nd,delta,eps,istart,iend,
+      subroutine fgt3dpart_direct_vec(nd,delta,dmax,istart,iend,
      $    jstart,jend,source,ifcharge,charge,
      2    ifdipole,rnormal,dipstr,
      $    targ,ifpgh,pot,grad,hess)
@@ -1220,7 +1234,7 @@ c     hess         Hessians  incremented at targets
 c-------------------------------------------------------               
         implicit none
 c
-        integer istart,iend,jstart,jend,ns,j,i
+        integer istart,iend,jstart,jend,ns,j,i,ntarg
         integer ifcharge,ifdipole
         integer nd
         integer ifpgh
@@ -1233,78 +1247,64 @@ c
         real *8 grad(nd,3,*)
         real *8 hess(nd,6,*)
 c
-        dmax = log(1.0d0/eps)*delta
         
         ns = iend - istart + 1
+        ntarg = jend-jstart+1
+        
         if(ifcharge.eq.1.and.ifdipole.eq.0) then
           if(ifpgh.eq.1) then
-             do j=jstart,jend
-               call g3d_directcp_vec(nd,delta,dmax,source(1,istart),ns,
-     1            charge(1,istart),targ(1,j),pot(1,j))
-             enddo
+             call g3d_directcp_vec(nd,delta,dmax,source(1,istart),ns,
+     1           charge(1,istart),targ(1,jstart),ntarg,pot(1,jstart))
           endif
 
           if(ifpgh.eq.2) then
-             do j=jstart,jend
-               call g3d_directcg_vec(nd,delta,dmax,source(1,istart),ns,
-     1            charge(1,istart),targ(1,j),pot(1,j),grad(1,1,j))
-             enddo
+             call g3d_directcg_vec(nd,delta,dmax,source(1,istart),ns,
+     1           charge(1,istart),targ(1,jstart),ntarg,pot(1,jstart),
+     2           grad(1,1,jstart))
           endif
-          if(ifpgh.eq.3) then
-             do j=jstart,jend
-               call g3d_directch_vec(nd,delta,dmax,source(1,istart),ns,
-     1            charge(1,istart),targ(1,j),pot(1,j),grad(1,1,j),
-     2            hess(1,1,j))
-             enddo
+          if(ifpgh.eq.3) then 
+             call g3d_directch_vec(nd,delta,dmax,source(1,istart),ns,
+     1           charge(1,istart),targ(1,jstart),ntarg,pot(1,jstart),
+     2           grad(1,1,jstart),hess(1,1,jstart))
           endif
         endif
 
         if(ifcharge.eq.0.and.ifdipole.eq.1) then
           if(ifpgh.eq.1) then
-             do j=jstart,jend
-               call g3d_directdp_vec(nd,delta,dmax,source(1,istart),ns,
-     1          rnormal(1,istart),dipstr(1,istart),targ(1,j),pot(1,j))
-             enddo
+             call g3d_directdp_vec(nd,delta,dmax,source(1,istart),ns,
+     1           rnormal(1,istart),dipstr(1,istart),targ(1,jstart),
+     2           ntarg,pot(1,jstart))
           endif
 
           if(ifpgh.eq.2) then
-             do j=jstart,jend
-               call g3d_directdg_vec(nd,delta,dmax,source(1,istart),ns,
-     1            rnormal(1,istart),dipstr(1,istart),targ(1,j),
-     2            pot(1,j),grad(1,1,j))
-             enddo
+             call g3d_directdg_vec(nd,delta,dmax,source(1,istart),ns,
+     1           rnormal(1,istart),dipstr(1,istart),targ(1,jstart),
+     2           ntarg,pot(1,jstart),grad(1,1,jstart))
           endif
           if(ifpgh.eq.3) then
-             do j=jstart,jend
-               call g3d_directdh_vec(nd,delta,dmax,source(1,istart),ns,
-     1            rnormal(1,istart),dipstr(1,istart),targ(1,j),
-     2            pot(1,j),grad(1,1,j),hess(1,1,j))
-             enddo
+             call g3d_directdh_vec(nd,delta,dmax,source(1,istart),ns,
+     1           rnormal(1,istart),dipstr(1,istart),targ(1,jstart),
+     2           ntarg,pot(1,jstart),grad(1,1,jstart),hess(1,1,jstart))
           endif
-        endif
+        endif 
 
         if(ifcharge.eq.1.and.ifdipole.eq.1) then
           if(ifpgh.eq.1) then
-             do j=jstart,jend
-               call g3d_directcdp_vec(nd,delta,dmax,source(1,istart),ns,
-     1            charge(1,istart),rnormal(1,istart),dipstr(1,istart),
-     2            targ(1,j),pot(1,j))
-             enddo
+             call g3d_directcdp_vec(nd,delta,dmax,source(1,istart),ns,
+     1           charge(1,istart),rnormal(1,istart),dipstr(1,istart),
+     2           targ(1,jstart),ntarg,pot(1,jstart))
           endif
 
           if(ifpgh.eq.2) then
-             do j=jstart,jend
-               call g3d_directcdg_vec(nd,delta,dmax,source(1,istart),ns,
-     1            charge(1,istart),rnormal(1,istart),dipstr(1,istart),
-     2            targ(1,j),pot(1,j),grad(1,1,j))
-             enddo
+             call g3d_directcdg_vec(nd,delta,dmax,source(1,istart),ns,
+     1           charge(1,istart),rnormal(1,istart),dipstr(1,istart),
+     2           targ(1,jstart),ntarg,pot(1,jstart),grad(1,1,jstart))
           endif
           if(ifpgh.eq.3) then
-             do j=jstart,jend
-               call g3d_directcdh_vec(nd,delta,dmax,source(1,istart),ns,
-     1            charge(1,istart),rnormal(1,istart),dipstr(1,istart),
-     2            targ(1,j),pot(1,j),grad(1,1,j),hess(1,1,j))
-             enddo
+             call g3d_directcdh_vec(nd,delta,dmax,source(1,istart),ns,
+     1           charge(1,istart),rnormal(1,istart),dipstr(1,istart),
+     2           targ(1,jstart),ntarg,pot(1,jstart),grad(1,1,jstart),
+     3           hess(1,1,jstart))
           endif
         endif
 
@@ -1371,7 +1371,10 @@ c------------------------------------------------------------------
       integer ibox,i,istart,nn,itmp,nlevstart
 c
       istart = 1
-      if (npwlevel .eq. nlevels) return
+      if (npwlevel .eq. nlevels) then
+         lmptot=0
+         return
+      endif
       
       nlevstart = 0
       if (npwlevel .ge. 0) nlevstart = npwlevel

@@ -60,9 +60,9 @@ c        nonuniform source distribution
          sources(3,i) = (rin+rwig*cos(theta))*cos(theta)+0.5d0
          
 c        uniform source distribution
-cccc         sources(1,i) = hkrand(0)
-cccc         sources(2,i) = hkrand(0)
-cccc         sources(3,i) = hkrand(0)
+         sources(1,i) = hkrand(0)
+         sources(2,i) = hkrand(0)
+         sources(3,i) = hkrand(0)
 
          
          rnormal(1,i) = hkrand(0)

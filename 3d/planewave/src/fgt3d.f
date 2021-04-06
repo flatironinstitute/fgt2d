@@ -676,7 +676,7 @@ c
       
       real *8 d,time1,time2,omp_get_wtime
       real *8 dx,dy,dz
-      real *8 tt1,tt2,xmin,xmin2,t1,t2
+      real *8 tt1,tt2,xmin,xmin2,t1,t2,dt
       real *8 pottmp,gradtmp(2),hesstmp(3)
 
       integer, allocatable :: ifhung(:),iflocal(:)
@@ -690,8 +690,8 @@ c
       complex *16, allocatable :: h2x(:,:)
       complex *16, allocatable :: x2l(:,:)
       
-      complex *16, allocatable :: wpwshift(:,:,:,:,:,:)
-      complex *16, allocatable :: wpwmsshift(:,:,:,:,:)
+      complex *16, allocatable :: wpwshift(:,:,:,:)
+      complex *16, allocatable :: wpwmsshift(:,:,:)
       
       double precision pi
       complex *16 eye
@@ -773,13 +773,13 @@ c     compute translation matrices for PW expansions
       nexp = npw*npw*npw/2
       
       nmax = 1
-      allocate(wpwshift(npw/2,npw,npw,-nmax:nmax,-nmax:nmax,-nmax:nmax))
+      allocate(wpwshift(nexp,-nmax:nmax,-nmax:nmax,-nmax:nmax))
       xmin  = boxsize(nlevstart)/sqrt(delta)
       call pw_translation_matrices(xmin,npw,nmax,
      1    wpwshift,ts)
 
       nmax = nlevels-max(npwlevel,0)      
-      allocate(wpwmsshift(npw/2,npw,npw,8,nmax))
+      allocate(wpwmsshift(nexp,8,nmax))
       xmin2 = boxsize(nlevels)/sqrt(delta)/2
       call merge_split_pw_matrices(xmin2,npw,nmax,
      1    wpwmsshift,ts)
@@ -883,13 +883,15 @@ C$        time1=omp_get_wtime()
 
       
 c
-c       ... step 1, locate all charges, assign them to boxes, and
-c       form multipole expansions
+c       ... step 1, form Hermite exp and convert it multipole PW expansions
+c       
 
 
       
       do 1100 ilev = nlevels,max(npwlevel+1,0),-1
-
+         nb=0
+         call cpu_time(t1)
+         
          allocate(hexp(0:ntermsh(ilev),0:ntermsh(ilev),
      1       0:ntermsh(ilev),nd))
          
@@ -911,6 +913,7 @@ C$OMP$SCHEDULE(DYNAMIC)
                npts = iend-istart+1
 c              Check if current box is a leaf box            
                if(nchild.eq.0.and.npts.gt.0) then
+                  nb=nb+1
 c                 form the Hermite expansion
                   call g3dformhc_vec(nd,delta,
      1                sourcesort(1,istart),npts,
@@ -936,6 +939,7 @@ C$OMP$SCHEDULE(DYNAMIC)
                npts = iend-istart+1
 c              Check if current box is a leaf box            
                if(nchild.eq.0.and.npts.gt.0) then
+                  nb=nb+1
 c                 form Hermite exp from sources
                   call g3dformhd_vec(nd,delta,sourcesort(1,istart),
      1                npts,rnormalsort(1,istart),
@@ -961,6 +965,7 @@ C$OMP$SCHEDULE(DYNAMIC)
                npts = iend-istart+1
 c              Check if current box is a leaf box            
                if(nchild.eq.0.and.npts.gt.0) then
+                  nb=nb+1
 c                 form the Hermite expansion
                   call g3dformhcd_vec(nd,delta,sourcesort(1,istart),
      1                npts,chargesort(1,istart),rnormalsort(1,istart),
@@ -974,6 +979,9 @@ cccc                  call g3dh2pw_real_vec(nd,ntermsh(ilev),npw,rh2x,
             enddo
 C     $OMP END PARALLEL DO
          endif
+         call cpu_time(t2)
+         print*, ilev, nb, t2-t1
+         
          deallocate(h2ltmp)
          deallocate(hexp)
 c     end of ilev do loop
@@ -1030,7 +1038,7 @@ C$OMP$SCHEDULE(DYNAMIC)
 
               call g3dshiftpw_vec(nd,nexp,rmlexp(iaddr(1,jbox)),
      1            rmlexp(iaddr(1,ibox)),
-     2            wpwmsshift(1,1,1,k,klev))
+     2            wpwmsshift(1,k,klev))
 cccc              call g3dshiftpw0_vec(nd,delta,npw,
 cccc     1            rmlexp(iaddr(1,jbox)),centers(1,jbox),
 cccc     1            rmlexp(iaddr(1,ibox)),centers(1,ibox),ws,ts)
@@ -1085,7 +1093,7 @@ c
               jz= nint((centers(3,ibox) - centers(3,jbox))/xmin)
 
               call g3dshiftpw_vec(nd,nexp,rmlexp(iaddr(1,jbox)),
-     1            rmlexp(iaddr(2,ibox)),wpwshift(1,1,1,jx,jy,jz))
+     1            rmlexp(iaddr(2,ibox)),wpwshift(1,jx,jy,jz))
 cccc              call g3dshiftpw0_vec(nd,delta,npw,
 cccc     1            rmlexp(iaddr(1,jbox)),centers(1,jbox),
 cccc     1            rmlexp(iaddr(2,ibox)),centers(1,ibox),ws,ts)
@@ -1157,7 +1165,7 @@ C$OMP$SCHEDULE(DYNAMIC)
               endif
               call g3dshiftpw_vec(nd,nexp,rmlexp(iaddr(2,ibox)),
      1            rmlexp(iaddr(2,jbox)),
-     2            wpwmsshift(1,1,1,k,nlevels-ilev))
+     2            wpwmsshift(1,k,nlevels-ilev))
 cccc              call g3dshiftpw0_vec(nd,delta,npw,
 cccc     1            rmlexp(iaddr(2,ibox)),centers(1,ibox),
 cccc     1            rmlexp(iaddr(2,jbox)),centers(1,jbox),ws,ts)
@@ -1189,6 +1197,7 @@ C$OMP$SCHEDULE(DYNAMIC)
          allocate(local(0:nlocal(ilev),0:nlocal(ilev),
      1       0:nlocal(ilev),nd))
          nb=0
+         dt=0
          do ibox = laddr(1,ilev),laddr(2,ilev)
             if (ilev .eq. npwlevel .and. iflocal(ibox).eq.0) then
 c              do nothing here
@@ -1205,10 +1214,14 @@ c              do nothing here
 
                   if (nptssrc + nptstarg .gt. 0) then
                      nb=nb+1
+                     call cpu_time(tt1)
+                     
 c                    convert PW expansions to local expansions
                      call g3dpw2local_vec(nd,nlocal(ilev),npw,x2l,
 cccc                 call g3dpw2local_real_vec(nd,nlocal(ilev),npw,rx2l,
      1                   rmlexp(iaddr(2,ibox)),local)
+                     call cpu_time(tt2)
+                     dt = dt + tt2-tt1
 c                    evaluate local expansion at targets
                      if(nptstarg.gt.0) then
                         if (ifpghtarg.eq.1) then
@@ -1259,7 +1272,7 @@ c                       evaluate local expansion at sources
             endif
          enddo
          call cpu_time(t2)
-         print*, ilev, nb, t2-t1
+         print*, ilev, nb, t2-t1, dt
          deallocate(local)
 C$OMP END PARALLEL DO        
  1500 continue

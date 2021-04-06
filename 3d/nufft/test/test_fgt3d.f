@@ -28,12 +28,12 @@ c
       done = 1
       pi = atan(done)*4
 
-      nsrc = 1 000 000
+      nsrc = 2 000 000
       ntarg = nsrc
       nd = 1
       delta = 5.0d-4
       bb = 1.0d0/(2.0d0**6)
-      n = 2
+      n = 1
       delta = bb*bb/(1.5*1.5)*2.0d0**n
 cccc      delta = 0.1*delta
 
@@ -60,9 +60,9 @@ c        nonuniform source distribution
          sources(3,i) = (rin+rwig*cos(theta))*cos(theta)+0.5d0
          
 c        uniform source distribution
-cccc         sources(1,i) = hkrand(0)
-cccc         sources(2,i) = hkrand(0)
-cccc         sources(3,i) = hkrand(0)
+         sources(1,i) = hkrand(0)
+         sources(2,i) = hkrand(0)
+         sources(3,i) = hkrand(0)
 
          
          rnormal(1,i) = hkrand(0)
@@ -139,13 +139,15 @@ cccc      call prin2('pottarg=*',pottarg,nd*ntt)
 cccc      call prin2('gradtarg=*',gradtarg,nd*3*ntt)
 cccc      call prin2('hesstarg=*',hesstarg,nd*6*ntt)
 
-      reps = 1.0d-100
-      call fgt3dpart_direct_vec(nd,delta,reps,1,nsrc,1,nts,sources,
+      dmax = 1.0d30
+      call cpu_time(t1)
+      call fgt3dpart_direct_vec(nd,delta,dmax,1,nsrc,1,nts,sources,
      1    ifcharge,charges,ifdipole,rnormal,dipstr,
      2    sources,ifpgh,potex,gradex,hessex)
 cccc      call prin2('potex=*',potex,nts*nd)
-
-      call fgt3dpart_direct_vec(nd,delta,reps,1,nsrc,1,ntt,sources,
+      call cpu_time(t2)
+      print *, 'direct eval time = ', t2-t1
+      call fgt3dpart_direct_vec(nd,delta,dmax,1,nsrc,1,ntt,sources,
      1    ifcharge,charges,ifdipole,rnormal,dipstr,
      2    targ,ifpghtarg,pottargex,gradtargex,hesstargex)
 cccc      call prin2('pottargex=*',pottargex,ntt*nd)

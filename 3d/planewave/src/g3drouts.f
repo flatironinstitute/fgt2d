@@ -2552,7 +2552,7 @@ C
       implicit real *8 (a-h,o-z)
       real *8 ts(npw)
       
-      complex *16 wshift(npw/2,npw,npw,-nmax:nmax,-nmax:nmax,-nmax:nmax)
+      complex *16 wshift(npw*npw*npw/2,-nmax:nmax,-nmax:nmax,-nmax:nmax)
       
       complex *16,allocatable:: ww(:,:)
 
@@ -2576,10 +2576,12 @@ C
       do k1=-nmax,nmax
       do k2=-nmax,nmax
       do k3=-nmax,nmax
+         j=0   
          do j1=1,npw
          do j2=1,npw
          do j3=1,npw/2
-            wshift(j3,j2,j1,k3,k2,k1) = ww(j3,k3)*ww(j2,k2)*ww(j1,k1)
+            j=j+1
+            wshift(j,k3,k2,k1) = ww(j3,k3)*ww(j2,k2)*ww(j1,k1)
          enddo
          enddo
          enddo
@@ -2614,7 +2616,7 @@ c                merge mp and split loc stage
 C
       implicit real *8 (a-h,o-z)
       real *8 xmin
-      complex *16 wshift(npw/2,npw,npw,8,nmax)
+      complex *16 wshift(npw*npw*npw/2,8,nmax)
       real *8 ts(npw)
       complex *16 ztmp
       complex *16 eye
@@ -2634,33 +2636,35 @@ C
       enddo
       
       do k1=1,nmax
+         j=0
          do j1=1,npw
          do j2=1,npw
          do j3=1,npw/2
+            j=j+1
 c           pp p              
-            wshift(j3,j2,j1,1,k1) = ww(j3,k1)*ww(j2,k1)
+            wshift(j,1,k1) = ww(j3,k1)*ww(j2,k1)
      1          *ww(j1,k1)
 c           pm p
-            wshift(j3,j2,j1,2,k1) = ww(j3,k1)*conjg(ww(j2,k1))
+            wshift(j,2,k1) = ww(j3,k1)*conjg(ww(j2,k1))
      1          *ww(j1,k1)
 c           mp p
-            wshift(j3,j2,j1,3,k1) = conjg(ww(j3,k1))*ww(j2,k1)
+            wshift(j,3,k1) = conjg(ww(j3,k1))*ww(j2,k1)
      1          *ww(j1,k1)
 c           mm p
-            wshift(j3,j2,j1,4,k1) = conjg(ww(j3,k1))*conjg(ww(j2,k1))
+            wshift(j,4,k1) = conjg(ww(j3,k1))*conjg(ww(j2,k1))
      1          *ww(j1,k1)
             
 c           pp m              
-            wshift(j3,j2,j1,5,k1) = ww(j3,k1)*ww(j2,k1)
+            wshift(j,5,k1) = ww(j3,k1)*ww(j2,k1)
      1          *conjg(ww(j1,k1))
 c           pm m
-            wshift(j3,j2,j1,6,k1) = ww(j3,k1)*conjg(ww(j2,k1))
+            wshift(j,6,k1) = ww(j3,k1)*conjg(ww(j2,k1))
      1          *conjg(ww(j1,k1))
 c           mp m
-            wshift(j3,j2,j1,7,k1) = conjg(ww(j3,k1))*ww(j2,k1)
+            wshift(j,7,k1) = conjg(ww(j3,k1))*ww(j2,k1)
      1          *conjg(ww(j1,k1))
 c           mm m
-            wshift(j3,j2,j1,8,k1) = conjg(ww(j3,k1))*conjg(ww(j2,k1))
+            wshift(j,8,k1) = conjg(ww(j3,k1))*conjg(ww(j2,k1))
      1          *conjg(ww(j1,k1))
             
          enddo
