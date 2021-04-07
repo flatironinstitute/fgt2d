@@ -36,6 +36,7 @@ c
       n = 4
       delta = bb*bb/(1.5*1.5)*2.0d0**n
 cccc      delta = 0.1*delta
+      delta=1.0d-3
       
       call prin2(' delta = *',delta,1)
       call prinf_long(' nsrc = *',nsrc,1)

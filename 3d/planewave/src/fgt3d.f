@@ -188,7 +188,7 @@ c     than 20 for high precision calculation
          bsize = bsize/2
       enddo
       
-cccc      if (npwlevel .ge. 0) nlmax=npwlevel+1
+      if (npwlevel .ge. 0) nlmax=npwlevel+1
       
       write(6,*) ' nlmax',nlmax
       
@@ -1261,8 +1261,8 @@ c              do nothing here
                      call cpu_time(tt1)
                      
 c                    convert PW expansions to local expansions
-                     call g3dpw2local_vec(nd,nlocal(ilev),npw,x2l,
-cccc                 call g3dpw2local_real_vec(nd,nlocal(ilev),npw,rx2l,
+cccc                     call g3dpw2local_vec(nd,nlocal(ilev),npw,x2l,
+                     call g3dpw2local_real_vec(nd,nlocal(ilev),npw,rx2l,
      1                   rmlexp(iaddr(2,ibox)),local)
                      call cpu_time(tt2)
                      dtt = dtt + tt2-tt1
