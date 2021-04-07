@@ -391,7 +391,7 @@ C
 C eval Hermite expansions (pot, pot+grad, pot+grad+hess)
 C
 C*********************************************************************
-      subroutine g3dhevalp_vec(nd,delta,cent,nterms,ffexp
+      subroutine g3dhevalp_vec(nd,delta,cent,nterms,ffexp,
      1    targ,ntarg,pot)
 C
 C     This subroutine evaluates the far field expansion FFEXP about
@@ -473,7 +473,7 @@ c
 C
 c
 C***********************************************************************
-      subroutine g3dhevalg_vec(nd,delta,cent,nterms,ffexp
+      subroutine g3dhevalg_vec(nd,delta,cent,nterms,ffexp,
      1           targ,ntarg,pot,grad)
 
 C
@@ -1477,17 +1477,18 @@ C
 C     hwexp         = plane wave expansion
 C      
       implicit real*8 (a-h,o-z)
-      complex *16 h2x(npw,0:ntermsh)
+cccc      complex *16 h2x(npw,0:ntermsh)
+      complex *16 h2x(0:ntermsh,npw)
       real *8 hexp(0:ntermsh,0:ntermsh,0:ntermsh,nd)
-      complex *16 pwexp(npw/2,npw,npw,nd)
+      complex *16 pwexp(npw,npw,npw/2,nd)
 
       complex *16, allocatable :: pxhyz(:,:,:),pxyhz(:,:,:)
       complex *16 eye,cd
       
       eye = dcmplx(0,1)
 c
-      allocate(pxhyz(npw/2,0:ntermsh,0:ntermsh))
-      allocate(pxyhz(npw/2,npw,0:ntermsh))
+      allocate(pxhyz(npw,0:ntermsh,0:ntermsh))
+      allocate(pxyhz(npw,npw,0:ntermsh))
 
 c      
       do ind=1,nd
@@ -1497,9 +1498,11 @@ c        transform in x
                do k3=1,npw/2
                   cd=0
                   do j3=0,ntermsh
-                     cd=cd+h2x(k3,j3)*hexp(j3,j2,j1,ind)
+cccc                     cd=cd+h2x(k3,j3)*hexp(j3,j2,j1,ind)
+                     cd=cd+h2x(j3,k3)*hexp(j3,j2,j1,ind)
                   enddo
                   pxhyz(k3,j2,j1)=cd
+                  pxhyz(k3+npw/2,j2,j1)=conjg(cd)
                enddo
             enddo
          enddo
@@ -1507,10 +1510,11 @@ c        transform in x
 c        transform in y
          do j1=0,ntermsh
             do k2=1,npw
-               do k3=1,npw/2
+               do k3=1,npw
                   cd=0
                   do j2=0,ntermsh
-                     cd=cd+h2x(k2,j2)*pxhyz(k3,j2,j1)
+cccc                     cd=cd+h2x(k2,j2)*pxhyz(k3,j2,j1)
+                     cd=cd+h2x(j2,k2)*pxhyz(k3,j2,j1)
                   enddo
                   pxyhz(k3,k2,j1)=cd
                enddo
@@ -1518,12 +1522,13 @@ c        transform in y
          enddo
 
 c        transform in z
-         do k1=1,npw
+         do k1=1,npw/2
             do k2=1,npw
-               do k3=1,npw/2
+               do k3=1,npw
                   cd=0
                   do j1=0,ntermsh
-                     cd=cd+h2x(k1,j1)*pxyhz(k3,k2,j1)
+cccc                     cd=cd+h2x(k1,j1)*pxyhz(k3,k2,j1)
+                     cd=cd+h2x(j1,k1)*pxyhz(k3,k2,j1)
                   enddo
                   pwexp(k3,k2,k1,ind) = pwexp(k3,k2,k1,ind) + cd
                enddo
@@ -1559,67 +1564,92 @@ C
 C     hwexp         = plane wave expansion
 C      
       implicit real*8 (a-h,o-z)
-      real *8 h2x(npw,0:ntermsh)
-      real *8 hexp(0:ntermsh,0:ntermsh,nd)
-      complex *16 pwexp(npw/2,npw,nd)
+      real *8 h2x(0:ntermsh,npw)
+      real *8 hexp(0:ntermsh,0:ntermsh,0:ntermsh,nd)
+      complex *16 pwexp(npw,npw,npw/2,nd)
 
-      complex *16, allocatable :: pxhy(:,:)
-      complex *16 eye,c0,c1,c2,c3,cd
+      complex *16, allocatable :: pxhyz(:,:,:),pxyhz(:,:,:)
+      complex *16 eye,cd,c0,c1,c2,c3
       
       eye = dcmplx(0,1)
 c
-cccc      allocate(pxhy(npw/2,0:ntermsh))
-      allocate(pxhy(0:ntermsh,npw/2))
-
+      allocate(pxhyz(npw,0:ntermsh,0:ntermsh))
+      allocate(pxyhz(npw,npw,0:ntermsh))
 c      
       do ind=1,nd
-         do k2=1,npw/2
+c        transform in x
+         do j1=0,ntermsh
             do j2=0,ntermsh
-               c0=0
-               c1=0
-               c2=0
-               c3=0
-               do j1=0,ntermsh,4
-                  c0=c0+h2x(k2,j1)*hexp(j1,j2,ind)
+               do k3=1,npw
+                  c0=0
+                  c1=0
+                  c2=0
+                  c3=0
+                  do j3=0,ntermsh,4
+                     c0=c0+h2x(j3,k3)*hexp(j3,j2,j1,ind)
+                  enddo
+                  do j3=1,ntermsh,4
+                     c1=c1+h2x(j3,k3)*hexp(j3,j2,j1,ind)
+                  enddo
+                  do j3=2,ntermsh,4
+                     c2=c2+h2x(j3,k3)*hexp(j3,j2,j1,ind)
+                  enddo
+                  do j3=3,ntermsh,4
+                     c3=c3+h2x(j3,k3)*hexp(j3,j2,j1,ind)
+                  enddo
+                  pxhyz(k3,j2,j1)=c0-c2+eye*(c1-c3)
                enddo
-               do j1=1,ntermsh,4
-                  c1=c1+h2x(k2,j1)*hexp(j1,j2,ind)
-               enddo
-               do j1=2,ntermsh,4
-                  c2=c2+h2x(k2,j1)*hexp(j1,j2,ind)
-               enddo
-               do j1=3,ntermsh,4
-                  c3=c3+h2x(k2,j1)*hexp(j1,j2,ind)
-               enddo
-cccc               pxhy(k2,j2)= c0-c2+eye*(c1-c3)
-               pxhy(j2,k2)= c0-c2+eye*(c1-c3)
             enddo
          enddo
 
-         do k1=1,npw
-            do k2=1,npw/2
-               c0=0
-               c1=0
-               c2=0
-               c3=0
-               do j2=0,ntermsh,4
-cccc                  c0=c0+h2x(k1,j2)*pxhy(k2,j2)
-                  c0=c0+h2x(k1,j2)*pxhy(j2,k2)
+c        transform in y
+         do j1=0,ntermsh
+            do k2=1,npw
+               do k3=1,npw
+                  c0=0
+                  c1=0
+                  c2=0
+                  c3=0                  
+                  do j2=0,ntermsh,4
+                     c0=c0+h2x(j2,k2)*pxhyz(k3,j2,j1)
+                  enddo
+                  do j2=1,ntermsh,4
+                     c1=c1+h2x(j2,k2)*pxhyz(k3,j2,j1)
+                  enddo
+                  do j2=2,ntermsh,4
+                     c2=c2+h2x(j2,k2)*pxhyz(k3,j2,j1)
+                  enddo
+                  do j2=3,ntermsh,4
+                     c3=c3+h2x(j2,k2)*pxhyz(k3,j2,j1)
+                  enddo
+                  pxyhz(k3,k2,j1)=c0-c2+eye*(c1-c3)
                enddo
-               do j2=1,ntermsh,4
-cccc                  c1=c1+h2x(k1,j2)*pxhy(k2,j2)
-                  c1=c1+h2x(k1,j2)*pxhy(j2,k2)
+            enddo
+         enddo
+         
+c        transform in z
+         do k1=1,npw/2
+            do k2=1,npw
+               do k3=1,npw
+                  c0=0
+                  c1=0
+                  c2=0
+                  c3=0
+                  do j1=0,ntermsh,4
+                     c0=c0+h2x(j1,k1)*pxyhz(k3,k2,j1)
+                  enddo
+                  do j1=1,ntermsh,4
+                     c1=c1+h2x(j1,k1)*pxyhz(k3,k2,j1)
+                  enddo
+                  do j1=2,ntermsh,4
+                     c2=c2+h2x(j1,k1)*pxyhz(k3,k2,j1)
+                  enddo
+                  do j1=3,ntermsh,4
+                     c3=c3+h2x(j1,k1)*pxyhz(k3,k2,j1)
+                  enddo
+                  pwexp(k3,k2,k1,ind) = pwexp(k3,k2,k1,ind) +
+     1                c0-c2+eye*(c1-c3)
                enddo
-               do j2=2,ntermsh,4
-cccc                  c2=c2+h2x(k1,j2)*pxhy(k2,j2)
-                  c2=c2+h2x(k1,j2)*pxhy(j2,k2)
-               enddo
-               do j2=3,ntermsh,4
-cccc                  c3=c3+h2x(k1,j2)*pxhy(k2,j2)
-                  c3=c3+h2x(k1,j2)*pxhy(j2,k2)
-               enddo
-               pwexp(k2,k1,ind) = pwexp(k2,k1,ind) +
-     1             + c0-c2+eye*(c1-c3)
             enddo
          enddo
        enddo
@@ -1657,22 +1687,22 @@ C
       implicit real*8 (a-h,o-z)
       complex *16 pw2l(npw,0:nlocal)
       real *8 local(0:nlocal,0:nlocal,0:nlocal,nd)
-      complex *16 pwexp(npw/2,npw,npw,nd)
+      complex *16 pwexp(npw,npw,npw/2,nd)
       complex *16, allocatable :: lxpyz(:,:,:),lxypz(:,:,:)
       complex *16 cd
 c      
 c
-      allocate(lxpyz(0:nlocal,npw,npw))
-      allocate(lxypz(0:nlocal,0:nlocal,npw))
+      allocate(lxpyz(0:nlocal,npw,npw/2))
+      allocate(lxypz(0:nlocal,0:nlocal,npw/2))
 
       npw2=npw/2
 
       do ind=1,nd
-         do j1=1,npw
+         do j1=1,npw/2
             do j2=1,npw
                do k3=0,nlocal
                   cd=0
-                  do j3=1,npw/2
+                  do j3=1,npw
                      cd=cd+pw2l(j3,k3)*pwexp(j3,j2,j1,ind)
                   enddo
                   lxpyz(k3,j2,j1)=cd
@@ -1680,7 +1710,7 @@ c
             enddo
          enddo
 
-         do j1=1,npw
+         do j1=1,npw/2
             do k2=0,nlocal
                do k3=0,nlocal
                   cd=0
@@ -1697,7 +1727,7 @@ c
             do k2=0,nlocal
                do k3=0,nlocal
                   cd=0
-                  do j1=1,npw
+                  do j1=1,npw/2
                      cd=cd+pw2l(j1,k1)*lxypz(k3,k2,j1)
                   enddo
                   local(k3,k2,k1,ind)=dble(cd)*2
@@ -1914,7 +1944,8 @@ C     h2x       = translation matrices
 C
       implicit real*8 (a-h,o-z)
       real *8 ws(npw), ts(npw)
-      complex *16 h2x(npw,0:ntermsh)
+cccc      complex *16 h2x(npw,0:ntermsh)
+      complex *16 h2x(0:ntermsh,npw)
       real *8, allocatable:: fac(:)
       complex *16 eye
       
@@ -1930,7 +1961,8 @@ cccc         fac(i)=fac(i-1)/i
       
       do j=0,ntermsh
          do i=1,npw
-            h2x(i,j)=ws(i)*(-eye*ts(i))**j*fac(j)
+cccc            h2x(i,j)=ws(i)*(-eye*ts(i))**j*fac(j)
+            h2x(j,i)=ws(i)*(-eye*ts(i))**j*fac(j)
          enddo
       enddo
       
@@ -1958,7 +1990,8 @@ C     h2x       = real translation matrices
 C
       implicit real*8 (a-h,o-z)
       real *8 ws(npw), ts(npw)
-      real *8 h2x(npw,0:ntermsh)
+cccc      real *8 h2x(npw,0:ntermsh)
+      real *8 h2x(0:ntermsh,npw)
       real *8, allocatable:: fac(:)
       complex *16 eye
       
@@ -1974,7 +2007,8 @@ cccc         fac(i)=fac(i-1)/i
       
       do j=0,ntermsh
          do i=1,npw
-            h2x(i,j)=ws(i)*(-ts(i))**j*fac(j)
+cccc            h2x(i,j)=ws(i)*(-ts(i))**j*fac(j)
+            h2x(j,i)=ws(i)*(-ts(i))**j*fac(j)
          enddo
       enddo
       
@@ -2577,9 +2611,9 @@ C
       do k2=-nmax,nmax
       do k3=-nmax,nmax
          j=0   
-         do j1=1,npw
+         do j1=1,npw/2
          do j2=1,npw
-         do j3=1,npw/2
+         do j3=1,npw
             j=j+1
             wshift(j,k3,k2,k1) = ww(j3,k3)*ww(j2,k2)*ww(j1,k1)
          enddo
@@ -2637,9 +2671,9 @@ C
       
       do k1=1,nmax
          j=0
-         do j1=1,npw
+         do j1=1,npw/2
          do j2=1,npw
-         do j3=1,npw/2
+         do j3=1,npw
             j=j+1
 c           pp p              
             wshift(j,1,k1) = ww(j3,k1)*ww(j2,k1)

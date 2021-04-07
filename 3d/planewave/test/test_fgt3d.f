@@ -28,15 +28,15 @@ c
       done = 1
       pi = atan(done)*4
 
-      nsrc = 1 000 000
+      nsrc =  1 000 000
       ntarg = nsrc
       nd = 1
       delta = 5.0d-4
       bb = 1.0d0/(2.0d0**6)
-      n = 2
+      n = 4
       delta = bb*bb/(1.5*1.5)*2.0d0**n
 cccc      delta = 0.1*delta
-
+      
       call prin2(' delta = *',delta,1)
       call prinf_long(' nsrc = *',nsrc,1)
 c
@@ -139,13 +139,15 @@ cccc      call prin2('pottarg=*',pottarg,nd*ntt)
 cccc      call prin2('gradtarg=*',gradtarg,nd*3*ntt)
 cccc      call prin2('hesstarg=*',hesstarg,nd*6*ntt)
 
-      reps = 1.0d-100
-      call fgt3dpart_direct_vec(nd,delta,reps,1,nsrc,1,nts,sources,
+      dmax = 1.0d30
+      call cpu_time(t1)
+      call fgt3dpart_direct_vec(nd,delta,dmax,1,nsrc,1,nts,sources,
      1    ifcharge,charges,ifdipole,rnormal,dipstr,
      2    sources,ifpgh,potex,gradex,hessex)
 cccc      call prin2('potex=*',potex,nts*nd)
-
-      call fgt3dpart_direct_vec(nd,delta,reps,1,nsrc,1,ntt,sources,
+      call cpu_time(t2)
+      print *, 'direct eval time = ', t2-t1
+      call fgt3dpart_direct_vec(nd,delta,dmax,1,nsrc,1,ntt,sources,
      1    ifcharge,charges,ifdipole,rnormal,dipstr,
      2    targ,ifpghtarg,pottargex,gradtargex,hesstargex)
 cccc      call prin2('pottargex=*',pottargex,ntt*nd)
@@ -162,7 +164,7 @@ cccc      call prin2('hesstargex=*',hesstargex,6*ntt(nd)
       if (ifpghtarg .gt. 2) 
      1    call derr(hesstargex,hesstarg,6*ntt*nd,errht)
 cc      errgs = 0
-c     c      errgt = 0
+cc      errgt = 0
 
 cc      errhs = 0
 cc      errht = 0

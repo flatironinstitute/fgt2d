@@ -162,7 +162,7 @@ c     it determines the speed of the algorithm when delta goes to zero.
 c     ndiv is the maximum number of points per box at or below the cutoff level
 c     it's determined by numerical experiments on finding the crossover point
 c     between direct evaluation and the fast scheme.
-      ndiv = 400
+      ndiv = 200
 c
       ifunif = 0
       iper = 0
@@ -731,8 +731,8 @@ c           Check if the current box is a nonempty leaf box
             endif
          enddo
       enddo
-cccc      call prinf('number of direct evaluation source boxes=*',
-cccc     1    ndirect,1)
+      call prinf('number of direct evaluation source boxes=*',
+     1    ndirect,1)
       
       do i=1,10
          timeinfo(i)=0
@@ -839,7 +839,7 @@ cccc       enddo
 c
 c
 
-cccc      call prinf('laddr=*',laddr,2*(nlevels+1))
+      call prinf('laddr=*',laddr,2*(nlevels+1))
       
       if(ifprint .ge. 1) 
      $   call prinf('=== STEP 1 (form mp) ====*',i,0)
@@ -930,7 +930,8 @@ c                 copy the multipole PW exp into local PW exp
             enddo
 C     $OMP END PARALLEL DO
          endif
-         print *, ilev, nb, dt
+ 111     format ('ilev=', i1,4x, 'nb=',i6, 4x,'formpwc=', f4.2)
+         write(6,111) ilev,nb,dt
 c     end of ilev do loop
  1100 continue
 
@@ -1081,7 +1082,8 @@ c     evaluate local expansion at sources
             endif
          enddo
          call cpu_time(t2)
-         print*, ilev, nb, t2-t1
+ 222     format ('ilev=', i1,4x, 'nb=',i6, 4x,'pwevalp=', f4.2)
+         write(6,222) ilev,nb,t2-t1
 C$OMP END PARALLEL DO        
  1500 continue
 

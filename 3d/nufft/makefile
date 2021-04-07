@@ -41,7 +41,8 @@ FFTWNAME = fftw3
 FFTWOMPSUFFIX = omp
 
 # omp override for total list of math and FFTW libs (now both precisions)...
-LIBSFFT := -l$(FFTWNAME) -l$(FFTWNAME)_$(FFTWOMPSUFFIX) -l$(FFTWNAME)f -l$(FFTWNAME)f_$(FFTWOMPSUFFIX) $(LIBS)
+#LIBSFFT := -l$(FFTWNAME) -l$(FFTWNAME)_$(FFTWOMPSUFFIX) -l$(FFTWNAME)f -l$(FFTWNAME)f_$(FFTWOMPSUFFIX) $(LIBS)
+LIBSFFT := -l$(FFTWNAME)  $(LIBS)
 
 LIBNAME=libfgt3d
 DYNAMICLIB = $(LIBNAME).so
