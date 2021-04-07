@@ -724,7 +724,7 @@ C$OMP$SCHEDULE(DYNAMIC)
             istart = isrcse(1,ibox)
             iend = isrcse(2,ibox)
             npts = iend-istart+1
-c           Check if the current box is a nonempty leaf box            
+c     Check if the current box is a nonempty leaf box            
             if(nchild.eq.0.and.npts.gt.0.and.npts.le.ndiv) then
                ifhung(ibox) = 1
                ndirect = ndirect + 1
