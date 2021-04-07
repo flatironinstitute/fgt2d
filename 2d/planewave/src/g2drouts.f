@@ -340,7 +340,7 @@ C
 C eval Hermite expansions (pot, pot+grad, pot+grad+hess)
 C
 C*********************************************************************
-      subroutine g2dhevalp_vec(nd,delta,cent,nterms,ffexp
+      subroutine g2dhevalp_vec(nd,delta,cent,nterms,ffexp,
      1    targ,ntarg,pot)
 C
 C     This subroutine evaluates the far field expansion FFEXP about
@@ -411,7 +411,7 @@ c
 C
 c
 C***********************************************************************
-      subroutine g2dhevalg_vec(nd,delta,cent,nterms,ffexp
+      subroutine g2dhevalg_vec(nd,delta,cent,nterms,ffexp,
      1           targ,ntarg,pot,grad)
 
 C
