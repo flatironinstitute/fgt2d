@@ -381,8 +381,9 @@ C$OMP END PARALLEL DO
      1        iparent,nchild,ichild,iper,nnbors,nbors)
 
         if(nlevels.ge.2.and.ifunif.ne.1) then
-          call pts_tree_fix_lr(centers,nlevels,nboxes,boxsize,nbmax,
-     1      nlmax,iper,laddr,ilevel,iparent,nchild,ichild,nnbors,nbors)
+           call pts_tree_fix_lr(centers,nlevels,levcut,nboxes,
+     1         boxsize,nbmax,nlmax,iper,laddr,ilevel,
+     2         iparent,nchild,ichild,nnbors,nbors)
         endif
 
       endif
@@ -646,7 +647,7 @@ C$OMP END PARALLEL DO
      2        itree(iptr(6)),itree(iptr(7)))
 
       if(nlevels.ge.2.and.ifunif.ne.1) then
-         call pts_tree_fix_lr(centers,nlevels,
+         call pts_tree_fix_lr(centers,nlevels,levcut,
      1         nboxes0,boxsize,nboxes,nlevels,iper,itree(iptr(1)),
      2         itree(iptr(2)),itree(iptr(3)),itree(iptr(4)),
      3         itree(iptr(5)),itree(iptr(6)),itree(iptr(7)))
@@ -851,7 +852,7 @@ c
 c       
 c
 c-------------------------------------------------------------      
-      subroutine pts_tree_fix_lr(centers,nlevels,nboxes,
+      subroutine pts_tree_fix_lr(centers,nlevels,levcut,nboxes,
      1       boxsize,nbmax,nlmax,iper,laddr,ilevel,iparent,nchild,
      2       ichild,nnbors,nbors)
 c
@@ -859,7 +860,7 @@ c
 c       convert an adaptive tree into a level restricted tree
 c
       implicit none
-      integer nlevels,nboxes,nlmax
+      integer nlevels,nboxes,nlmax,levcut
       integer nbmax,iper
       double precision centers(3,nbmax),boxsize(0:nlmax)
       integer laddr(2,0:nlmax),ilevel(nbmax),iparent(nbmax)
@@ -899,6 +900,7 @@ c
 c     For such boxes, we set iflag(i) = 1
 c
       do ilev=nlevels,2,-1
+cccc      do ilev=min(nlevels,levcut),2,-1
 c        This is the distance to test if two boxes separated
 c        by two levels are touching
          distest = 1.05d0*(boxsize(ilev-1) + boxsize(ilev-2))/2.0d0
@@ -950,6 +952,7 @@ c     childless and present the case where a bigger box
 c     is contacting a flagged or flag+ box.
 
       do ilev = nlevels,1,-1
+cccc      do ilev = min(nlevels,levcut),1,-1
 c        This is the distance to test if two boxes separated
 c        by one level are touching
          distest = 1.05d0*(boxsize(ilev) + boxsize(ilev-1))/2.0d0

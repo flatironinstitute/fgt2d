@@ -188,7 +188,7 @@ c     than 20 for high precision calculation
          bsize = bsize/2
       enddo
       
-      if (npwlevel .ge. 0) nlmax=npwlevel+1
+cccc      if (npwlevel .ge. 0) nlmax=npwlevel+1
       
       write(6,*) ' nlmax',nlmax
       
