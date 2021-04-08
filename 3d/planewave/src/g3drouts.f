@@ -124,7 +124,7 @@ C
       real *8 cent(3),sources(3,ns),charge(nd,ns)
       real *8 ffexp(0:nterms,0:nterms,0:nterms,nd)
       real *8 x,y,chg
-      real *8, allocatable ::  xp(:),yp(:),zp(:)
+      real *8, allocatable :: xp(:),yp(:),zp(:),sqk(:)
 C
 C     initialize coefficients to zero.
 C
@@ -141,11 +141,16 @@ C
       allocate(xp(0:nterms))
       allocate(yp(0:nterms))
       allocate(zp(0:nterms))
+      allocate(sqk(nterms))
 c
       dsq = 1.0D0/dsqrt(delta)
 C
 C     accumulate expansion due to each source.
 C
+      do k=1,nterms
+         sqk(k)=dsqrt(dble(k))
+      enddo
+      
       do i=1,ns
          x = (sources(1,i) - cent(1))*dsq
          y = (sources(2,i) - cent(2))*dsq
@@ -154,10 +159,9 @@ C
          yp(0) = 1.0D0
          zp(0) = 1.0D0
          do k = 1,nterms
-            tmp = dsqrt(dble(k))
-            xp(k) = xp(k-1)*x/tmp
-            yp(k) = yp(k-1)*y/tmp
-            zp(k) = zp(k-1)*z/tmp
+            xp(k) = xp(k-1)*x/sqk(k)
+            yp(k) = yp(k-1)*y/sqk(k)
+            zp(k) = zp(k-1)*z/sqk(k)
          enddo
 c
          do ind=1,nd
@@ -2256,6 +2260,102 @@ c
 c      
 c      
 C
+C
+C************************************************************************
+C
+C     form PW exp subroutines (charge, dipole, charge+dipole)
+C
+C***********************************************************************
+      subroutine g3dformpwc_vec(nd,delta,sources,ns,charge,center,
+     1    npw,ws,ts,pwexp)
+C
+C     This subroutine computes the Taylor expansions about
+C     the center CENT due to sources of strength charge().
+C
+C     INPUT
+C
+c     nd            = vector length (parallel)
+C     delta         = Gaussian variance
+C     sources(2,ns) = coordinates of sources
+C     ns            = number of sources
+C     charge        = strength of sources
+C     center        = center of the expansion
+C     nlocal        = number of terms in local exp
+C
+C     OUTPUT:
+C
+C     local         = local expansions 
+C
+      implicit real*8 (a-h,o-z)
+      real *8 center(3),sources(3,ns),charge(nd,ns)
+      real *8 ws(npw),ts(npw)
+      complex *16 pwexp(npw,npw,npw/2,nd)
+
+      integer i,ind,j1,j2,j3,j,npw2,itarg,k
+      real *8 x,y,z,dsq
+      complex *16 eye,ytmp,ztmp
+      complex *16 qqx,qqy,qqz,qq1,qq2,qq3
+      
+      complex *16 ww1(100)
+      complex *16 ww2(100)
+      complex *16 ww3(100)
+C
+      eye = dcmplx(0,1)
+      dsq = 1.0D0/dsqrt(delta)
+C
+      npw2=npw/2
+C
+      do i=1,ns
+         x = (sources(1,i) - center(1))*dsq
+         y = (sources(2,i) - center(2))*dsq
+         z = (sources(3,i) - center(3))*dsq
+c
+         qqx = cdexp(-eye*ts(1)*x)
+         qqy = cdexp(-eye*ts(1)*y)
+         qqz = cdexp(-eye*ts(1)*z)
+         
+         qq1 = qqx
+         qq2 = qqy
+         qq3 = qqz
+         
+         qqx = qqx*qqx
+         qqy = qqy*qqy
+         qqz = qqz*qqz
+         
+
+         do j1=1,npw2
+            ww1(j1) = qq1*ws(j1)
+            ww2(j1) = qq2*ws(j1)            
+            ww3(j1) = qq3*ws(j1)            
+            qq1 = qq1*qqx
+            qq2 = qq2*qqy
+            qq3 = qq3*qqz
+            
+            ww1(j1+npw2) = dconjg(ww1(j1))
+            ww2(j1+npw2) = dconjg(ww2(j1))
+            ww3(j1+npw2) = dconjg(ww3(j1))
+         enddo
+c
+         do ind = 1,nd
+            chg=charge(ind,i)
+            do j3=1,npw/2
+               ztmp=chg*ww3(j3)
+               do j2=1,npw
+                  ytmp=ztmp*ww2(j2)
+                  do j1=1,npw
+                     pwexp(j1,j2,j3,ind)=pwexp(j1,j2,j3,ind)+
+     1                   ytmp*ww1(j1)
+                  enddo
+               enddo
+            enddo
+         enddo
+      enddo
+
+      return
+      end
+C
+C
+C
 c*********************************************************************
 C
 C evaluate PW expansions (potential, pot + grad, pot + grad + hess)
@@ -2290,21 +2390,22 @@ C     pot           = potential (or vectorized potentials) incremented
 C
       implicit none
       integer nd,npw,ntarg
-      real *8 delta,center(2),targ(2,ntarg)
+      real *8 delta,center(3),targ(3,ntarg)
       real *8 pot(nd,ntarg)
       
       real *8 wx(npw),tx(npw)
-      complex *16 pwexp(npw/2,npw,nd)
+      complex *16 pwexp(npw,npw,npw/2,nd)
 
-      integer i,ind,j1,j2,j,npw2,itarg,k
-      real *8 x,y,dsq
+      integer i,ind,j1,j2,j3,j,npw2,itarg,k
+      real *8 x,y,z,dsq
       complex *16 eye
-      complex *16 qqx,qqy,qq1,qq2
+      complex *16 qqx,qqy,qqz,qq1,qq2,qq3
       
       complex *16 ww1(100)
       complex *16 ww2(100)
+      complex *16 ww3(100)
 
-      complex *16 z,cd
+      complex *16 c1,c2,c3
 C
       eye = dcmplx(0,1)
       dsq = 1.0D0/dsqrt(delta)
@@ -2313,35 +2414,49 @@ C
       do itarg=1,ntarg
          x = (targ(1,itarg) - center(1))*dsq
          y = (targ(2,itarg) - center(2))*dsq
+         z = (targ(3,itarg) - center(3))*dsq
 
          qqx = cdexp(eye*tx(1)*x)
          qqy = cdexp(eye*tx(1)*y)
+         qqz = cdexp(eye*tx(1)*z)
+         
          qq1 = qqx
          qq2 = qqy
+         qq3 = qqz
+         
          qqx = qqx*qqx
          qqy = qqy*qqy
+         qqz = qqz*qqz
          
 
          do j1=1,npw2
             ww1(j1) = qq1
             ww2(j1) = qq2            
+            ww3(j1) = qq3            
             qq1 = qq1*qqx
             qq2 = qq2*qqy
+            qq3 = qq3*qqz
+            
             ww1(j1+npw2) = dconjg(ww1(j1))
             ww2(j1+npw2) = dconjg(ww2(j1))
+            ww3(j1+npw2) = dconjg(ww3(j1))
          enddo
 c
          do ind = 1,nd
-            z=0
-            do j2=1,npw
-               cd=0
-               do j1=1,npw/2
-                  cd=cd+pwexp(j1,j2,ind)*ww1(j1)
+            c3=0
+            do j3=1,npw/2
+               c2=0
+               do j2=1,npw
+                  c1=0
+                  do j1=1,npw
+                     c1=c1+pwexp(j1,j2,j3,ind)*ww1(j1)
+                  enddo
+                  c2=c2+c1*ww2(j2)
                enddo
-               z=z+cd*ww2(j2)
+               c3=c3+c2*ww3(j3)
             enddo
             
-            pot(ind,itarg) = pot(ind,itarg)+dreal(z)*2
+            pot(ind,itarg) = pot(ind,itarg)+dreal(c3)*2
          enddo
       enddo
 c
@@ -2375,23 +2490,24 @@ C     OUTPUT:
 C     pot           = potential (or vectorized potentials) incremented
 C     grad          = gradient (or vectorized gradients) incremented
 C
-      implicit none
+      implicit real*8 (a-h,o-z)
       integer nd,npw,ntarg
-      real *8 delta,center(2),targ(2,ntarg)
-      real *8 pot(nd,ntarg),grad(nd,2,ntarg)
+      real *8 delta,center(3),targ(3,ntarg)
+      real *8 pot(nd,ntarg),grad(nd,3,ntarg)
       
       real *8 wx(npw),tx(npw)
-      complex *16 pwexp(npw/2,npw,nd)
+      complex *16 pwexp(npw,npw,npw/2,nd)
 
       integer i,ind,j1,j2,j,npw2,itarg,k
-      real *8 x,y,dsq
+      real *8 x,y,z,dsq
       complex *16 eye
-      complex *16 qqx,qqy,qq1,qq2
+      complex *16 qqx,qqy,qqz,qq1,qq2,qq3
       
       complex *16 ww1(100),ww1x(100)
       complex *16 ww2(100),ww2y(100)
+      complex *16 ww3(100),ww3z(100)
 
-      complex *16 z,zx,zy,c,cx,cy
+      complex *16 cd,g1,g2,g3,d1,d1x,d1y,d2,d2x
 C
       eye = dcmplx(0,1)
       dsq = 1.0D0/dsqrt(delta)
@@ -2400,51 +2516,70 @@ C
       do itarg=1,ntarg
          x = (targ(1,itarg) - center(1))*dsq
          y = (targ(2,itarg) - center(2))*dsq
+         z = (targ(3,itarg) - center(3))*dsq
 
          qqx = cdexp(eye*tx(1)*x)
          qqy = cdexp(eye*tx(1)*y)
+         qqz = cdexp(eye*tx(1)*z)
          qq1 = qqx
          qq2 = qqy
+         qq3 = qqz
          qqx = qqx*qqx
          qqy = qqy*qqy
+         qqz = qqz*qqz
          
 
          do j1=1,npw2
             ww1(j1) = qq1
             ww2(j1) = qq2            
+            ww3(j1) = qq3            
             ww1(j1+npw2) = dconjg(ww1(j1))
             ww2(j1+npw2) = dconjg(ww2(j1))
+            ww3(j1+npw2) = dconjg(ww3(j1))
 
             ww1x(j1)= eye*tx(j1)*dsq*ww1(j1)
             ww2y(j1)= eye*tx(j1)*dsq*ww2(j1)
+            ww3z(j1)= eye*tx(j1)*dsq*ww3(j1)
+            
             ww1x(j1+npw2)=dconjg(ww1x(j1))
             ww2y(j1+npw2)=dconjg(ww2y(j1))
+            ww3z(j1+npw2)=dconjg(ww3z(j1))
 
             qq1 = qq1*qqx
             qq2 = qq2*qqy
+            qq3 = qq3*qqz
          enddo
 c
          do ind = 1,nd
-            z=0
-            zx=0
-            zy=0
-            do j2=1,npw
-               c=0
-               cx=0
-               cy=0
-               do j1=1,npw/2
-                  c = c+pwexp(j1,j2,ind)*ww1(j1)
-                  cx = cx+pwexp(j1,j2,ind)*ww1x(j1)
-cccc                  cy=cy+pwexp(j1,j2,ind)*ww1(j1)
+            cd=0
+            g1=0
+            g2=0
+            g3=0
+            do j3=1,npw/2
+               d1=0
+               d1x=0
+               d1y=0
+               do j2=1,npw
+                  d2=0
+                  d2x=0
+                  do j1=1,npw
+                     d2 = d2+pwexp(j1,j2,j3,ind)*ww1(j1)
+                     d2x = d2x+pwexp(j1,j2,j3,ind)*ww1x(j1)
+                  enddo
+                  d1 = d1+d2*ww2(j2)
+                  d1x = d1x+d2x*ww2(j2)
+                  d1y = d1y+d2*ww2y(j2)
                enddo
-               z = z+c*ww2(j2)
-               zx = zx+cx*ww2(j2)
-               zy = zy+c*ww2y(j2)
+               cd=cd+d1*ww3(j3)
+               g1=g1+d1x*ww3(j3)
+               g2=g2+d1y*ww3(j3)
+               g3=g3+d1*ww3z(j3)
             enddo
             
-            pot(ind,itarg) = pot(ind,itarg)+dreal(z)*2
-            grad(ind,1,itarg) = grad(ind,1,itarg)+dreal(zx)*2
-            grad(ind,2,itarg) = grad(ind,2,itarg)+dreal(zy)*2
+            pot(ind,itarg) = pot(ind,itarg)+dreal(cd)*2
+            grad(ind,1,itarg) = grad(ind,1,itarg)+dreal(g1)*2
+            grad(ind,2,itarg) = grad(ind,2,itarg)+dreal(g2)*2
+            grad(ind,3,itarg) = grad(ind,3,itarg)+dreal(g3)*2
          enddo
       enddo
 c
@@ -2479,24 +2614,26 @@ C     pot           = potential (or vectorized potentials) incremented
 C     grad          = gradient (or vectorized gradients) incremented
 C     hess          = Hessian (or vectorized Hessians) incremented
 C
-      implicit none
+      implicit real*8 (a-h,o-z)
       integer nd,npw,ntarg
-      real *8 delta,center(2),targ(2,ntarg)
-      real *8 pot(nd,ntarg),grad(nd,2,ntarg),hess(nd,3,ntarg)
+      real *8 delta,center(3),targ(3,ntarg)
+      real *8 pot(nd,ntarg),grad(nd,3,ntarg),hess(nd,6,ntarg)
       
       real *8 wx(npw),tx(npw)
-      complex *16 pwexp(npw/2,npw,nd)
+      complex *16 pwexp(npw,npw,npw/2,nd)
 
       integer i,ind,j1,j2,j,npw2,itarg,k
-      real *8 x,y,dsq
+      real *8 x,y,z,dsq
       complex *16 eye
-      complex *16 qqx,qqy,qq1,qq2
+      complex *16 qqx,qqy,qqz,qq1,qq2,qq3
       
       complex *16 ww1(100),ww1x(100),ww1xx(100)
       complex *16 ww2(100),ww2y(100),ww2yy(100)
+      complex *16 ww3(100),ww3z(100),ww3zz(100)
 
-      complex *16 z,zx,zy,zxx,zxy,zyy
-      complex *16 c,cx,cy,cxx,cxy,cyy
+      complex *16 dd,g1,g2,g3,d1,d1x,d1y,d2,d2x,d2xx
+      complex *16 h11,h22,h33,h12,h13,h23
+      complex *16 d1xx,d1yy,d1xy
 
 C
       eye = dcmplx(0,1)
@@ -2506,69 +2643,112 @@ C
       do itarg=1,ntarg
          x = (targ(1,itarg) - center(1))*dsq
          y = (targ(2,itarg) - center(2))*dsq
+         z = (targ(3,itarg) - center(3))*dsq
 
          qqx = cdexp(eye*tx(1)*x)
          qqy = cdexp(eye*tx(1)*y)
+         qqz = cdexp(eye*tx(1)*z)
          qq1 = qqx
          qq2 = qqy
+         qq3 = qqz
          qqx = qqx*qqx
          qqy = qqy*qqy
+         qqz = qqz*qqz
          
 
          do j1=1,npw2
             ww1(j1) = qq1
             ww2(j1) = qq2            
+            ww3(j1) = qq3            
             ww1(j1+npw2) = dconjg(ww1(j1))
             ww2(j1+npw2) = dconjg(ww2(j1))
+            ww3(j1+npw2) = dconjg(ww3(j1))
 
             ww1x(j1)= eye*tx(j1)*dsq*ww1(j1)
             ww2y(j1)= eye*tx(j1)*dsq*ww2(j1)
+            ww3z(j1)= eye*tx(j1)*dsq*ww3(j1)
+            
             ww1x(j1+npw2)=dconjg(ww1x(j1))
             ww2y(j1+npw2)=dconjg(ww2y(j1))
+            ww3z(j1+npw2)=dconjg(ww3z(j1))
 
             ww1xx(j1)= eye*tx(j1)*dsq*ww1x(j1)
             ww2yy(j1)= eye*tx(j1)*dsq*ww2y(j1)
+            ww3zz(j1)= eye*tx(j1)*dsq*ww3z(j1)
+            
             ww1xx(j1+npw2)=dconjg(ww1xx(j1))
             ww2yy(j1+npw2)=dconjg(ww2yy(j1))
-
+            ww3zz(j1+npw2)=dconjg(ww3zz(j1))
+            
             qq1 = qq1*qqx
             qq2 = qq2*qqy
+            qq3 = qq3*qqz
          enddo
 c
          do ind = 1,nd
-            z=0
-            zx=0
-            zy=0
-            zxx=0
-            zxy=0
-            zyy=0
-            do j2=1,npw
-               c=0
-               cx=0
-               cy=0
-               cxx=0
-               cxy=0
-               cyy=0               
-               do j1=1,npw/2
-                  c=c+pwexp(j1,j2,ind)*ww1(j1)
-                  cx=cx+pwexp(j1,j2,ind)*ww1x(j1)
-                  cxx=cxx+pwexp(j1,j2,ind)*ww1xx(j1)                  
+            dd=0
+            g1=0
+            g2=0
+            g3=0
+            h11=0
+            h22=0
+            h33=0
+            h12=0
+            h13=0
+            h23=0
+            do j3=1,npw/2
+               d1=0
+               d1x=0
+               d1y=0
+
+               d1xx=0
+               d1yy=0
+               d1xy=0               
+               do j2=1,npw
+                  d2=0
+                  d2x=0
+                  d2xx=0
+                  do j1=1,npw
+                     d2=d2+pwexp(j1,j2,j3,ind)*ww1(j1)
+                     d2x=d2x+pwexp(j1,j2,j3,ind)*ww1x(j1)
+                     d2xx=d2xx+pwexp(j1,j2,j3,ind)*ww1xx(j1)                  
+                  enddo
+                  d1=d1+d2*ww2(j2)
+                  d1x=d1x+d2x*ww2(j2)
+                  d1xx=d1xx+d2xx*ww2(j2)
+                  
+                  d1y=d1y+d2*ww2y(j2)
+                  d1xy=d1xy+d2x*ww2y(j2)
+                  
+                  d1yy=d1yy+d2*ww2yy(j2)
                enddo
-               z=z+c*ww2(j2)
-               zx=zx+cx*ww2(j2)
-               zy=zy+c*ww2y(j2)
+               dd=dd+d1*ww3(j3)
+               g1=g1+d1x*ww3(j3)
+               g2=g2+d1y*ww3(j3)
+
+               h11=h11+d1xx*ww3(j3)
+               h22=h22+d1yy*ww3(j3)
+               h12=h12+d1xy*ww3(j3)
                
-               zxx=zxx+cxx*ww2(j2)
-               zxy=zxy+cx*ww2y(j2)
-               zyy=zyy+c*ww2yy(j2)
+               g3=g3+d1*ww3z(j3)
+               h13=h13+d1x*ww3z(j3)
+               h23=h23+d1y*ww3z(j3)
+               
+               h33=h33+d1*ww3zz(j3)
             enddo
+            pot(ind,itarg) = pot(ind,itarg)+dreal(dd)*2
             
-            pot(ind,itarg) = pot(ind,itarg)+dreal(z)*2
-            grad(ind,1,itarg) = grad(ind,1,itarg)+dreal(zx)*2
-            grad(ind,2,itarg) = grad(ind,2,itarg)+dreal(zy)*2
-            hess(ind,1,itarg) = hess(ind,1,itarg)+dreal(zxx)*2
-            hess(ind,2,itarg) = hess(ind,2,itarg)+dreal(zxy)*2
-            hess(ind,3,itarg) = hess(ind,3,itarg)+dreal(zyy)*2
+            grad(ind,1,itarg) = grad(ind,1,itarg)+dreal(g1)*2
+            grad(ind,2,itarg) = grad(ind,2,itarg)+dreal(g2)*2
+            grad(ind,3,itarg) = grad(ind,3,itarg)+dreal(g3)*2
+
+            hess(ind,1,itarg) = hess(ind,1,itarg)+dreal(h11)*2
+            hess(ind,2,itarg) = hess(ind,2,itarg)+dreal(h22)*2
+            hess(ind,3,itarg) = hess(ind,3,itarg)+dreal(h33)*2
+
+            hess(ind,4,itarg) = hess(ind,4,itarg)+dreal(h12)*2
+            hess(ind,5,itarg) = hess(ind,5,itarg)+dreal(h13)*2
+            hess(ind,6,itarg) = hess(ind,6,itarg)+dreal(h23)*2
          enddo
       enddo
 c

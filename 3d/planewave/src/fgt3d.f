@@ -188,7 +188,7 @@ c     than 20 for high precision calculation
          bsize = bsize/2
       enddo
       
-cccc      if (npwlevel .ge. 0) nlmax=npwlevel+1
+      if (npwlevel .ge. 0) nlmax=npwlevel+1
       
       write(6,*) ' nlmax',nlmax
       
@@ -428,7 +428,7 @@ C$      time1=omp_get_wtime()
      $   ifdipole,rnormalsort,dipstrsort,
      $   nt,targsort,
      $   iaddr,rmlexp,
-     $   itree,ltree,iptr,nlevels,npwlevel,
+     $   itree,ltree,iptr,nlevels,npwlevel,ndiv,
      $   nboxes,iper,boxsize,tcenters,itree(iptr(1)),
      $   isrcse,itargse,ntermsh,nlocal,ntermmax,pmax,npw,
      $   ifpgh,potsort,gradsort,hesssort,
@@ -486,7 +486,7 @@ c
      $     ifdipole,rnormalsort,dipstrsort,
      $     ntarget,targetsort,
      $     iaddr,rmlexp,
-     $     itree,ltree,iptr,nlevels,npwlevel,
+     $     itree,ltree,iptr,nlevels,npwlevel,ndiv,
      $     nboxes,iper,boxsize,centers,laddr,
      $     isrcse,itargse,ntermsh,nlocal,ntermmax,pmax,npw,
      $     ifpgh,pot,grad,hess,
@@ -650,7 +650,7 @@ c
 c     temp variables
       integer i,j,k,l,idim,ip,isx,ii,j1,j2
       integer ibox,jbox,ilev,klev,npts,nptssrc,nptstarg
-      integer nchild,ncoll,nb
+      integer nchild,ncoll,nb,nb1,nb2
       integer isep, mnbors
 
       integer mnlist1,mnlist2,mnlist3,mnlist4,mnlistpw
@@ -672,13 +672,14 @@ c
       
       integer nn,jx,jy,jz,nlevstart,nlevend
 
-      integer ntermswitch,nlocalswitch
+      integer ntermswitch,nlocalswitch,nptsswitch
       
       real *8 d,time1,time2,omp_get_wtime
       real *8 dx,dy,dz
-      real *8 tt1,tt2,xmin,xmin2,t1,t2,dt,dtt
+      real *8 tt1,tt2,xmin,xmin2,t1,t2,dt,dtt,dttt
+      real *8 ttt1,ttt2
       real *8 pottmp,gradtmp(2),hesstmp(3)
-      real *8 dmax
+      real *8 dmax,r1,r2,r3
 
       integer, allocatable :: ifhung(:),iflocal(:)
       integer ndirect
@@ -903,6 +904,7 @@ c
          nb=0
          dt=0
          dtt=0
+         dttt=0
          
          allocate(hexp(0:ntermsh(ilev),0:ntermsh(ilev),
      1       0:ntermsh(ilev),nd))
@@ -920,13 +922,28 @@ c
                h2xtmp(j2,j1)=h2x(j2,j1)
             enddo
          enddo
+
+c     nptsswitch determines whether to use formpw directly
+c     or to use formh, then h2pw
+         r1=(ntermsh(ilev)+1.0d0)/npw
+         r2=r1*r1
+         r3=r1*r2
+         if (r3.ge.3) then
+c           in this case, always do formpw 
+            nptsswitch=1000000
+         else
+c           in this case, do formpw if npts is < nptsswitch
+            nptsswitch=10*int((r1+2*r2+r3)*npw/(3-r3))
+         endif
+cccc         print *, nptsswitch
          
-cccc         allocate(rh2xtmp(0:ntermsh(ilev),npw))
-cccc         do j1=1,npw
-cccc            do j2=0,ntermsh(ilev)
-cccc               rh2xtmp(j2,j1)=rh2x(j2,j1)
-cccc            enddo
-cccc         enddo
+         
+         allocate(rh2xtmp(0:ntermsh(ilev),npw))
+         do j1=1,npw
+            do j2=0,ntermsh(ilev)
+               rh2xtmp(j2,j1)=rh2x(j2,j1)
+            enddo
+         enddo
          
 C
          if(ifcharge.eq.1.and.ifdipole.eq.0) then
@@ -941,22 +958,33 @@ C$OMP$SCHEDULE(DYNAMIC)
 c              Check if current box is a leaf box            
                if(nchild.eq.0.and.npts.gt.0) then
                   nb=nb+1
-                  call cpu_time(t1)
-c                 form the Hermite expansion
-                  call g3dformhc_vec(nd,delta,
-     1                sourcesort(1,istart),npts,
-     2                chargesort(1,istart),centers(1,ibox),
-     3                ntermsh(ilev),hexp)
-                  call cpu_time(t2)
-                  dt=dt+t2-t1
-                  call cpu_time(tt1)
-c                 Hermite exp to PW exp
+                  if (npts.gt.nptsswitch) then
+                     call cpu_time(t1)
+c                    form the Hermite expansion
+                     call g3dformhc_vec(nd,delta,
+     1                   sourcesort(1,istart),npts,
+     2                   chargesort(1,istart),centers(1,ibox),
+     3                   ntermsh(ilev),hexp)
+                     call cpu_time(t2)
+                     dt=dt+t2-t1
+                     call cpu_time(tt1)
+c                    Hermite exp to PW exp
 cccc                  call g3dh2pw_vec(nd,ntermsh(ilev),npw,h2x,
-cccc                  call g3dh2pw_real_vec(nd,ntermsh(ilev),npw,rh2xtmp,
-                  call g3dh2pw_vec(nd,ntermsh(ilev),npw,h2xtmp,
-     2                hexp,rmlexp(iaddr(1,ibox)))
-                  call cpu_time(tt2)
-                  dtt=dtt+tt2-tt1
+                     call g3dh2pw_real_vec(nd,ntermsh(ilev),npw,rh2xtmp,
+cccc                     call g3dh2pw_vec(nd,ntermsh(ilev),npw,h2xtmp,
+     2                   hexp,rmlexp(iaddr(1,ibox)))
+                     call cpu_time(tt2)
+                     dtt=dtt+tt2-tt1
+                  else
+                     call cpu_time(ttt1)
+c                    form PW expansion directly
+                     call g3dformpwc_vec(nd,delta,
+     1                   sourcesort(1,istart),npts,
+     2                   chargesort(1,istart),centers(1,ibox),
+     3                   npw,ws,ts,rmlexp(iaddr(1,ibox)))
+                     call cpu_time(ttt2)
+                     dttt=dttt+ttt2-ttt1
+                  endif
                endif
             enddo
 C$OMP END PARALLEL DO 
@@ -1020,13 +1048,13 @@ cccc            call prinf('total number of boxes at this level=*',nb,1)
 cccc            call prin2('time on form Hermite=*',dt,1)
 cccc            call prin2('time on Hermite to PW=*',dtt,1)
 cccc      endif
- 111     format ('ilev=', i1,4x, 'nb=',i6, 4x,'formhc=', f4.2, 4x,
-     1       'h2pw=', f4.2)         
-         write(6,111) ilev,nb,dt,dtt
+ 111     format ('ilev=', i1,4x, 'nb=',i6, 4x,'formhc=', f5.2, 4x,
+     1       'h2pw=', f5.2, 4x, 'formpw=', f5.2)         
+         write(6,111) ilev,nb,dt,dtt,dttt
          
          deallocate(h2ltmp)
          deallocate(h2xtmp)
-cccc         deallocate(rh2xtmp)
+         deallocate(rh2xtmp)
          deallocate(hexp)
 c     end of ilev do loop
  1100 continue
@@ -1239,95 +1267,162 @@ C$OMP$SCHEDULE(DYNAMIC)
          call cpu_time(t1)
          allocate(local(0:nlocal(ilev),0:nlocal(ilev),
      1       0:nlocal(ilev),nd))
+c     nptsswitch determines whether to use pweval directly
+c     or to use pw2local, then loc eval.
+         r1=(nlocal(ilev)+1.0d0)/npw
+         r2=r1*r1
+         r3=r1*r2
+         if (r3.ge.3) then
+c           in this case, always do pweval 
+            nptsswitch=1000000
+         else
+c           in this case, do pweval if npts is < nptsswitch
+            nptsswitch=10*int((r1+r2+r3)*npw/(3-r3))
+         endif
+cccc         print *, nptsswitch
+         
          nb=0
+         nb1=0
          dt=0
          dtt=0
+         dttt=0
          do ibox = laddr(1,ilev),laddr(2,ilev)
-            if (ilev .eq. npwlevel .and. iflocal(ibox).eq.0) then
-c              do nothing here
-            else    
-               nchild = itree(iptr(4)+ibox-1)
-               if(nchild.eq.0) then
-                  istartt = itargse(1,ibox) 
-                  iendt = itargse(2,ibox)
-                  nptstarg = iendt-istartt + 1
+           if (ilev .eq. npwlevel .and. iflocal(ibox).eq.0) then
+c            do nothing here
+           else    
+             nchild = itree(iptr(4)+ibox-1)
+             if(nchild.eq.0) then
+               istartt = itargse(1,ibox) 
+               iendt = itargse(2,ibox)
+               nptstarg = iendt-istartt + 1
 
-                  istarts = isrcse(1,ibox)
-                  iends = isrcse(2,ibox)
-                  nptssrc = iends-istarts+1
-
-                  if (nptssrc + nptstarg .gt. 0) then
-                     nb=nb+1
-                     call cpu_time(tt1)
-                     
-c                    convert PW expansions to local expansions
-cccc                     call g3dpw2local_vec(nd,nlocal(ilev),npw,x2l,
-                     call g3dpw2local_real_vec(nd,nlocal(ilev),npw,rx2l,
-     1                   rmlexp(iaddr(2,ibox)),local)
-                     call cpu_time(tt2)
-                     dtt = dtt + tt2-tt1
-c                    evaluate local expansion at targets
-                     if(nptstarg.gt.0) then
-                        if (ifpghtarg.eq.1) then
-                           call g3dlevalp_vec(nd,delta,centers(1,ibox),
-     1                         nlocal(ilev),local,
-     2                         targetsort(1,istartt),
-     3                         nptstarg,pottarg(1,istartt))
-                        endif
-                        if (ifpghtarg.eq.2) then
-                           call g3dlevalg_vec(nd,delta,centers(1,ibox),
-     1                         nlocal(ilev),local,
-     2                         targetsort(1,istartt),nptstarg,
-     3                         pottarg(1,istartt),gradtarg(1,1,istartt))
-                        endif
-                        if (ifpghtarg.eq.3) then
-                           call g3dlevalh_vec(nd,delta,centers(1,ibox),
-     1                         nlocal(ilev),local,
-     2                         targetsort(1,istartt),nptstarg,
-     3                         pottarg(1,istartt),gradtarg(1,1,istartt),
-     4                         hesstarg(1,1,istartt))
-                        endif
+               istarts = isrcse(1,ibox)
+               iends = isrcse(2,ibox)
+               nptssrc = iends-istarts+1
+               
+               npts=nptssrc+nptstarg
+               if (npts .gt. 0) then
+                 if (npts .lt. nptsswitch) then
+                   nb1=nb1+1
+                   call cpu_time(ttt1)
+                        
+                   if(nptstarg.gt.0) then
+                     if (ifpghtarg.eq.1) then
+                       call g3dpwevalp_vec(nd,delta,centers(1,ibox),
+     1                      npw,ws,ts,rmlexp(iaddr(2,ibox)),
+     2                      targetsort(1,istartt),
+     3                      nptstarg,pottarg(1,istartt))
                      endif
-c     
-c                       evaluate local expansion at sources
-                     if (nptssrc.gt.0) then
-                        if (ifpgh.eq.1) then
-                           call cpu_time(t1)
-                           call g3dlevalp_vec(nd,delta,centers(1,ibox),
-     1                         nlocal(ilev),local,
-     2                         sourcesort(1,istarts),nptssrc,
-     3                         pot(1,istarts))
-                           call cpu_time(t2)
-                           dt=dt+t2-t1
-                        endif
-                        if (ifpgh.eq.2) then
-                           call g3dlevalg_vec(nd,delta,centers(1,ibox),
-     1                         nlocal(ilev),local,
-     2                         sourcesort(1,istarts),nptssrc,
-     3                         pot(1,istarts),grad(1,1,istarts))
-                        endif
-                        if (ifpgh.eq.3) then
-                           call g3dlevalh_vec(nd,delta,centers(1,ibox),
-     1                         nlocal(ilev),local,
-     2                         sourcesort(1,istarts),nptssrc,
-     3                         pot(1,istarts),grad(1,1,istarts),
-     4                         hess(1,1,istarts))
-                        endif
+                     if (ifpghtarg.eq.2) then
+                       call g3dpwevalg_vec(nd,delta,centers(1,ibox),
+     1                     npw,ws,ts,rmlexp(iaddr(2,ibox)),
+     2                     targetsort(1,istartt),nptstarg,
+     3                     pottarg(1,istartt),gradtarg(1,1,istartt))
+                     endif                        
+                     if (ifpghtarg.eq.3) then
+                       call g3dpwevalh_vec(nd,delta,centers(1,ibox),
+     1                      npw,ws,ts,rmlexp(iaddr(2,ibox)),
+     2                      targetsort(1,istartt),nptstarg,
+     3                      pottarg(1,istartt),gradtarg(1,1,istartt),
+     4                      hesstarg(1,1,istartt))
+                     endif                        
+                   endif
+                   if(nptssrc.gt.0)then
+                     if (ifpgh.eq.1) then
+                       call g3dpwevalp_vec(nd,delta,centers(1,ibox),
+     1                     npw,ws,ts,rmlexp(iaddr(2,ibox)),
+     2                     sourcesort(1,istarts),nptssrc,
+     3                     pot(1,istarts))
                      endif
+                     if (ifpgh.eq.2) then
+                       call g3dpwevalg_vec(nd,delta,centers(1,ibox),
+     1                     npw,ws,ts,rmlexp(iaddr(2,ibox)),
+     2                     sourcesort(1,istarts),nptssrc,
+     3                     pot(1,istarts),grad(1,1,istarts))
+                     endif
+                     if (ifpgh.eq.3) then
+                       call g3dpwevalh_vec(nd,delta,centers(1,ibox),
+     1                      npw,ws,ts,rmlexp(iaddr(2,ibox)),
+     2                      sourcesort(1,istarts),nptssrc,
+     3                      pot(1,istarts),grad(1,1,istarts),
+     4                      hess(1,1,istarts))
+                     endif
+                   endif
+                   call cpu_time(ttt2)
+                   dttt=dttt+ttt2-ttt1
+                 else  
+                   nb=nb+1
+c                 convert PW expansions to local expansions
+cccc  call g3dpw2local_vec(nd,nlocal(ilev),npw,x2l,
+                   call cpu_time(tt1)
+                   call g3dpw2local_real_vec(nd,nlocal(ilev),npw,rx2l,
+     1                 rmlexp(iaddr(2,ibox)),local)
+                   call cpu_time(tt2)
+                   dtt = dtt + tt2-tt1
+c                  evaluate local expansion at targets
+                   call cpu_time(t1)
+                   if(nptstarg.gt.0) then
+                     if (ifpghtarg.eq.1) then
+                       call g3dlevalp_vec(nd,delta,centers(1,ibox),
+     1                     nlocal(ilev),local,
+     2                     targetsort(1,istartt),
+     3                     nptstarg,pottarg(1,istartt))
+                     endif
+                     if (ifpghtarg.eq.2) then
+                       call g3dlevalg_vec(nd,delta,centers(1,ibox),
+     1                     nlocal(ilev),local,
+     2                     targetsort(1,istartt),nptstarg,
+     3                     pottarg(1,istartt),gradtarg(1,1,istartt))
+                    endif
+                    if (ifpghtarg.eq.3) then
+                      call g3dlevalh_vec(nd,delta,centers(1,ibox),
+     1                    nlocal(ilev),local,
+     2                    targetsort(1,istartt),nptstarg,
+     3                    pottarg(1,istartt),gradtarg(1,1,istartt),
+     4                    hesstarg(1,1,istartt))
+                    endif
                   endif
-               endif
+c     
+c                 evaluate local expansion at sources
+                  if (nptssrc.gt.0) then
+                    if (ifpgh.eq.1) then
+                      call g3dlevalp_vec(nd,delta,centers(1,ibox),
+     1                   nlocal(ilev),local,
+     2                   sourcesort(1,istarts),nptssrc,
+     3                   pot(1,istarts))
+                    endif
+                    if (ifpgh.eq.2) then
+                      call g3dlevalg_vec(nd,delta,centers(1,ibox),
+     1                    nlocal(ilev),local,
+     2                    sourcesort(1,istarts),nptssrc,
+     3                    pot(1,istarts),grad(1,1,istarts))
+                    endif
+                    if (ifpgh.eq.3) then
+                      call g3dlevalh_vec(nd,delta,centers(1,ibox),
+     1                    nlocal(ilev),local,
+     2                    sourcesort(1,istarts),nptssrc,
+     3                    pot(1,istarts),grad(1,1,istarts),
+     4                    hess(1,1,istarts))
+                    endif
+                  endif
+                  call cpu_time(t2)
+                  dt=dt+t2-t1
+                endif
+              endif
             endif
-         enddo
+          endif
+ccc    end of ibox loop        
+        enddo
 cccc         if (ifprint.ge.1) then
 cccc            call prinf('ilev=*',ilev,1)
 cccc            call prinf('total number of boxes at this level=*',nb,1)
 cccc            call prin2('time on local eval=*',dt,1)
 cccc            call prin2('time on PW to local=*',dtt,1)
 cccc         endif
- 222     format ('ilev=', i1,4x, 'nb=',i6, 4x,'loc eval=', f4.2, 4x,
-     1       'pw2l=', f4.2)         
-         write(6,222) ilev,nb,dt,dtt
-         deallocate(local)
+ 222    format ('ilev=', i1,4x, 'nb=',i6, 4x,'loc eval=', f5.2, 4x,
+     1       'pw2l=', f5.2,4x, 'nb1=',i6,4x,'pwevalc=', f5.2)         
+        write(6,222) ilev,nb,dt,dtt,nb1,dttt
+        deallocate(local)
 C$OMP END PARALLEL DO        
  1500 continue
 

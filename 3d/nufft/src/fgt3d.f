@@ -162,7 +162,7 @@ c     it determines the speed of the algorithm when delta goes to zero.
 c     ndiv is the maximum number of points per box at or below the cutoff level
 c     it's determined by numerical experiments on finding the crossover point
 c     between direct evaluation and the fast scheme.
-      ndiv = 400
+      ndiv = 200
 c
       ifunif = 0
       iper = 0
