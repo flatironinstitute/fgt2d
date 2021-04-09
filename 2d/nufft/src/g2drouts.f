@@ -1253,7 +1253,7 @@ C
       real *8 ws(-npw/2:npw/2-1), ts(-npw/2:npw/2-1)
       real *8 wnufft(nexp)
       complex *16 ffexp(nexp,nd)
-      real *8 x,y,chg
+      real *8 x,y,chg,sj
       real *8, allocatable ::  xj(:),yj(:)
       complex *16, allocatable :: cj(:,:),fk(:,:,:),wj(:)
 c     this (since unallocated) used to pass a NULL ptr to FINUFFT...
@@ -1278,6 +1278,8 @@ C
          xj(j) = (sources(1,j) - cent(1))*dsq
          yj(j) = (sources(2,j) - cent(2))*dsq
          wj(j) = exp(-0.5d0*eye*(xj(j)+yj(j)))
+cccc         sj = -0.5d0*(xj(j)+yj(j))
+cccc         wj(j) = dcmplx(cos(sj),sin(sj))
       enddo
 
       do ind = 1,nd

@@ -36,6 +36,15 @@ c
 C     g3dlevalh_vec : evaluates the local Taylor expansion 
 C                         pot/grad/Hessian
 c
+c     g3dformpwc_vec : computes the PW expansion due to charges
+c                      
+c      
+c     g3dformpwd_vec : computes the PW expansion due to dipoles
+c                      
+c      
+c     g3dformpwcd_vec : computes the PW expansion due to charges and dipoles
+c                      
+c      
 c     g3dpwevalp_vec : evaluates the PW expansion
 c                      potential only
 c      
@@ -45,34 +54,17 @@ c
 c     g3dpwevalh_vec : evaluates the PW expansion
 c                      potential + gradient + hessian
 c      
+c     g3dherm2local_vec : converts the Hermite expansion to the Taylor expansion
+c      
 C     g3dh2pw_vec : converts the Hermite expansion to the PW expansion
 c      
 c     g3dh2pw_real_vec : same as above, use REAL 1D h2pw matrix
 c
-c     g3dherm2local_vec : converts the Hermite expansion to the Taylor expansion
-c      
 c     g3dpw2local_vec : converts PW expansions to the local Taylor expansion
 c
 c     g3dpw2local_real_vec : converts PW expansion to local expansion
 c                            USE REAL 1D pw2l matrix
 c      
-c     g3dh2lmat : returns the matrix converting the Hermite expansion
-C                 to the local Taylor expansion (1D only)
-c      
-c     g3dh2xmat : returns the matrix converting the Hermite expansion 
-C                 to the planewave expansion (1D only)
-C     
-c     g3drh2xmat : returns REAL matrix converting the Hermite expansion 
-C                 to the planewave expansion (1D only)
-C                 That is, i^j factor is ignored
-C     
-C     g3dx2lmat : returns the matrix converting the planewave expansion
-C                 to the local Taylor expansion (1D only)
-C
-C     g3drx2lmat : returns REAL matrix converting the planewave expansion
-C                 to the local Taylor expansion (1D only),
-C                 that is, i^j factor is ignored.
-c
 c     get_pwnodes : returns PW weights and nodes, midpoint rule is used
 c                   so the number is always an even number!
 c
@@ -90,6 +82,23 @@ c
 c     g3dshiftpw0_vec : translates PW expansion from one center to another
 c                       without any precomputation
 c
+c
+c     g3dh2lmat : returns the matrix converting the Hermite expansion
+C                 to the local Taylor expansion (1D only)
+c      
+c     g3dh2xmat : returns the matrix converting the Hermite expansion 
+C                 to the planewave expansion (1D only)
+C     
+c     g3drh2xmat : returns REAL matrix converting the Hermite expansion 
+C                 to the planewave expansion (1D only)
+C                 That is, i^j factor is ignored
+C     
+C     g3dx2lmat : returns the matrix converting the planewave expansion
+C                 to the local Taylor expansion (1D only)
+C
+C     g3drx2lmat : returns REAL matrix converting the planewave expansion
+C                 to the local Taylor expansion (1D only),
+C                 that is, i^j factor is ignored.
 c
 c
 c*********************************************************************
@@ -216,6 +225,7 @@ C
       real *8 x,y,delta,dsq,tmp,d1,d2
       real *8, allocatable ::  hx(:),hy(:),hz(:)
       real *8, allocatable ::  dxhx(:),dyhy(:),dzhz(:)
+      real *8, allocatable :: sqk(:)
 C
 C     initialize coefficients to zero.
 C
@@ -232,9 +242,16 @@ C
       allocate(hy(0:nterms))
       allocate(hz(0:nterms))
       allocate(dxhx(0:nterms),dyhy(0:nterms),dzhz(0:nterms))
+      allocate(sqk(nterms))
 c
       dsq = 1.0D0/dsqrt(delta)
 C
+C     accumulate expansion due to each source.
+C
+      do k=1,nterms
+         sqk(k)=dsqrt(dble(k))
+      enddo
+c
 C     accumulate expansion due to each source.
 C
       do i=1,ns
@@ -248,13 +265,12 @@ C
          dyhy(0) = 0.0D0
          dzhz(0) = 0.0D0
          do j1 = 1,nterms
-            tmp = dsqrt(dble(j1))
-            hy(j1)=hy(j1-1)*y/tmp
-            hx(j1)=hx(j1-1)*x/tmp
-            hz(j1)=hz(j1-1)*z/tmp
-            dxhx(j1) = j1*dsq*hx(j1-1)/tmp
-            dyhy(j1) = j1*dsq*hy(j1-1)/tmp
-            dzhz(j1) = j1*dsq*hz(j1-1)/tmp
+            hy(j1)=hy(j1-1)*y/sqk(j1)
+            hx(j1)=hx(j1-1)*x/sqk(j1)
+            hz(j1)=hz(j1-1)*z/sqk(j1)
+            dxhx(j1) = j1*dsq*hx(j1-1)/sqk(j1)
+            dyhy(j1) = j1*dsq*hy(j1-1)/sqk(j1)
+            dzhz(j1) = j1*dsq*hz(j1-1)/sqk(j1)
          enddo
 c
          do ind = 1,nd
@@ -267,11 +283,10 @@ c
                d3 = dzhz(l)*r3
                do k=0,nterms
                   c1 = hy(k)*d1
-                  c2 = dyhy(k)*d2
-                  c3 = hy(k)*d3
+                  c2 = dyhy(k)*d2+hy(k)*d3
                   do j=0,nterms
                      ffexp(j,k,l,ind) = ffexp(j,k,l,ind)
-     1                   +dxhx(j)*c1+hx(j)*(c2+c3)
+     1                   +dxhx(j)*c1+hx(j)*c2
                enddo
             enddo
             enddo
@@ -371,14 +386,11 @@ c
                d3 = dzhz(l)*r3
                
                do k=0,nterms
-                  rtmp=ztmp*hy(k)
-
                   c1 = hy(k)*d1
-                  c2 = dyhy(k)*d2
-                  c3 = hy(k)*d3
+                  c2 = dyhy(k)*d2+hy(k)*(d3+ztmp)
                   do j=0,nterms
                      ffexp(j,k,l,ind) = ffexp(j,k,l,ind)+
-     1                   dxhx(j)*c1+hx(j)*(c2+c3+rtmp)
+     1                   dxhx(j)*c1+hx(j)*c2
                enddo
             enddo
             enddo
@@ -409,6 +421,7 @@ C     ffexp    = coefficients of far field expansion
 C     nterms   = number of terms in expansion
 C     cent     = center of the expansion
 C     targ     = target location
+C     ntarg    = number of targets
 C
 C     OUTPUT:
 C
@@ -492,6 +505,7 @@ C     ffexp    = coefficients of far field expansion
 C     nterms   = number of terms in expansion
 C     cent     = center of the expansion
 C     targ     = target location
+C     ntarg    = number of targets
 C
 C     OUTPUT:
 C
@@ -607,6 +621,7 @@ C     ffexp    = coefficients of far field expansion
 C     nterms   = number of terms in expansion
 C     cent     = center of the expansion
 C     targ     = target location
+C     ntarg    = number of targets
 C
 C     OUTPUT:
 C
@@ -776,7 +791,7 @@ C     INPUT
 C
 c     nd            = vector length (parallel)
 C     delta         = Gaussian variance
-C     sources(2,ns) = coordinates of sources
+C     sources(3,ns) = coordinates of sources
 C     ns            = number of sources
 C     charge        = strength of sources
 C     center        = center of the expansion
@@ -851,8 +866,8 @@ c     nd            = vector length (parallel)
 C     delta         = Gaussian variance
 C     sources(3,ns) = coordinates of sources
 C     ns            = number of sources
-C     rnormal   = dipole directions
-C     dipstr    = dipole strengths 
+C     rnormal       = dipole directions
+C     dipstr        = dipole strengths 
 C     center        = center of the expansion
 C     nlocal        = number of terms in local exp
 C
@@ -940,8 +955,8 @@ c     nd            = vector length (parallel)
 C     delta         = Gaussian variance
 C     sources(3,ns) = coordinates of sources
 C     ns            = number of sources
-C     rnormal   = dipole directions
-C     dipstr    = dipole strengths 
+C     rnormal       = dipole directions
+C     dipstr        = dipole strengths 
 C     center        = center of the expansion
 C     nlocal        = number of terms in local exp
 C
@@ -1040,8 +1055,8 @@ C     delta         = Gaussian variance
 C     center        = center of the expansion
 C     nlocal        = number of terms in local expansions
 C     local         = local Taylor expansion
-c
 C     targ          = target location
+C     ntarg         = number of targets
 C
 C     OUTPUT:
 C
@@ -1107,8 +1122,8 @@ C     delta         = Gaussian variance
 C     center        = center of the expansion
 C     nlocal        = number of terms in local expansions
 C     local         = local Taylor expansion
-c
 C     targ          = target location
+C     ntarg         = number of targets
 C
 C     OUTPUT:
 C
@@ -1206,8 +1221,8 @@ C     delta         = Gaussian variance
 C     center        = center of the expansion
 C     nlocal        = number of terms in local expansions
 C     local         = local Taylor expansion
-c
 C     targ          = target location
+C     ntarg         = number of targets
 C
 C     OUTPUT:
 C
@@ -1345,7 +1360,7 @@ c
 C
 C***********************************************************************
 C
-C 2D translations (h2l, h2sx_h2s_real, h2sx_h2s)
+C 3D translations (h2l, h2pw, h2pw_real)
 C
 c***********************************************************************      
       subroutine g3dherm2local_vec(nd,nlocal,ntermsh,h2l,
@@ -1675,7 +1690,7 @@ C
 C      
 C***********************************************************************
 C
-C 2D translations pw2local
+C 3D translations pw2local, pw2local_real
 C
 c***********************************************************************      
       subroutine g3dpw2local_vec(nd,nlocal,npw,pw2l,
@@ -1926,340 +1941,6 @@ C
 C
 C
 C
-C************************************************************************
-C
-C 1d translation matrices
-C
-C**********************************************************************
-      subroutine g3dh2lmat(nlocal,ntermsh,h2l)
-C
-C     This subroutine returns the matrix converting the 
-C     Hermite expansion to the local expansion
-C     
-C
-C     INPUT
-C
-C     nlocal       = number of terms in local exp
-C     ntermsh       = number of terms in the Hermite exp
-C
-C     OUTPUT:
-C
-C     h2l        = translation matrix
-C
-      implicit real*8 (a-h,o-z)
-      real *8 h2l(0:ntermsh,0:nlocal)
-      real *8, allocatable :: sqc(:,:),fac(:),hexpx(:)
-
-      ntot = ntermsh+nlocal
-      allocate(sqc(0:ntot,0:ntot),fac(0:nlocal),hexpx(0:ntot))
-      
-      call getsqrtbinomialcoeffs(ntot,sqc)
-      
-      fac(0)=1.0d0
-      do i=1,nlocal
-         fac(i)=fac(i-1)*sqrt(i*1.0d0)
-      enddo
-
-      x=0
-      hexpx(0)=1.0d0
-      hexpx(1)=2*x
-      
-      do i=1,ntermsh+nlocal-1
-         hexpx(i+1)=2.0d0*(x/dsqrt((i+1)*1.0d0)*hexpx(i)
-     1          -dsqrt(1.0d0*i/(i+1))*hexpx(i-1))
-      enddo
-
-      do i=0,ntermsh
-         do j=0,nlocal
-            h2l(i,j)=(-1)**j*hexpx(i+j)*sqc(i+j,i)/fac(j)
-         enddo
-      enddo
-      
-      return
-      end
-C
-C
-C
-C
-      subroutine g3dh2xmat(ntermsh,npw,ws,ts,h2x)
-C
-C     This subroutine returns the matrix converting the Hermite expansion
-C     to the planewave expansions
-C
-C     INPUT
-C
-C     ntermsh       = number of terms in Hermite exp
-C     npw          = number of exponentials in the planewave exp
-c
-C     ws,ts         = planewave exp weights and nodes
-C
-C     OUTPUT:
-C
-C     h2x       = translation matrices
-C
-      implicit real*8 (a-h,o-z)
-      real *8 ws(npw), ts(npw)
-cccc      complex *16 h2x(npw,0:ntermsh)
-      complex *16 h2x(0:ntermsh,npw)
-      real *8, allocatable:: fac(:)
-      complex *16 eye
-      
-      eye = dcmplx(0,1)
-      
-      allocate(fac(0:ntermsh))
-
-      fac(0)=1.0d0
-      do i=1,ntermsh
-         fac(i)=fac(i-1)/sqrt(dble(i))
-cccc         fac(i)=fac(i-1)/i
-      enddo
-      
-      do j=0,ntermsh
-         do i=1,npw
-cccc            h2x(i,j)=ws(i)*(-eye*ts(i))**j*fac(j)
-            h2x(j,i)=ws(i)*(-eye*ts(i))**j*fac(j)
-         enddo
-      enddo
-      
-      return
-      end
-C
-C
-C
-C
-      subroutine g3drh2xmat(ntermsh,npw,ws,ts,h2x)
-C
-C     This subroutine returns the matrix converting the Hermite expansion
-C     to the planewave expansions
-C
-C     INPUT
-C
-C     ntermsh       = number of terms in Hermite exp
-C     npw          = number of exponentials in the planewave exp
-c
-C     ws,ts         = planewave exp weights and nodes
-C
-C     OUTPUT:
-C
-C     h2x       = real translation matrices
-C
-      implicit real*8 (a-h,o-z)
-      real *8 ws(npw), ts(npw)
-cccc      real *8 h2x(npw,0:ntermsh)
-      real *8 h2x(0:ntermsh,npw)
-      real *8, allocatable:: fac(:)
-      complex *16 eye
-      
-      eye = dcmplx(0,1)
-      
-      allocate(fac(0:ntermsh))
-
-      fac(0)=1.0d0
-      do i=1,ntermsh
-         fac(i)=fac(i-1)/sqrt(dble(i))
-cccc         fac(i)=fac(i-1)/i
-      enddo
-      
-      do j=0,ntermsh
-         do i=1,npw
-cccc            h2x(i,j)=ws(i)*(-ts(i))**j*fac(j)
-            h2x(j,i)=ws(i)*(-ts(i))**j*fac(j)
-         enddo
-      enddo
-      
-      return
-      end
-C
-C
-C
-C            
-      subroutine g3dx2lmat(nlocal,npw,ws,ts,x2l)
-C
-C     This subroutine returns the matrices converting the planewave expansions
-C     to the local expansion
-C
-C     INPUT
-C
-C     nlocal       = number of terms in local exp
-C     npw          = number of terms in the planvewave exp 
-c
-C     ws,ts         = planewave exp weights and nodes
-C
-C     OUTPUT:
-C
-C     x2l        = translation matrix
-C
-      implicit real*8 (a-h,o-z)
-      real *8 ws(npw), ts(npw)
-      complex *16 x2l(npw,0:nlocal)
-      complex *16 eye
-      real *8, allocatable:: fac(:)
-
-      allocate(fac(0:nlocal))
-      
-      eye = dcmplx(0,1)
-      
-      fac(0)=1.0d0
-      do i=1,nlocal
-         fac(i)=fac(i-1)*i
-      enddo
-      
-      do j=0,nlocal
-         do i=1,npw
-            x2l(i,j)=(eye*ts(i))**j/fac(j)
-         enddo
-      enddo
-
-      return
-      end
-C
-C
-C
-      subroutine g3drx2lmat(nlocal,npw,ws,ts,x2l)
-C
-C     This subroutine returns the matrices converting the planewave expansions
-C     to the local expansion
-C
-C     INPUT
-C
-C     nlocal       = number of terms in local exp
-C     npw          = number of terms in the planvewave exp 
-c
-C     ws,ts         = planewave exp weights and nodes
-C
-C     OUTPUT:
-C
-C     x2l        = real translation matrix
-C
-      implicit real*8 (a-h,o-z)
-      real *8 ws(npw), ts(npw)
-      real *8 x2l(npw,0:nlocal)
-      complex *16 eye
-      real *8, allocatable:: fac(:)
-
-      allocate(fac(0:nlocal))
-      
-      eye = dcmplx(0,1)
-      
-      fac(0)=1.0d0
-      do i=1,nlocal
-         fac(i)=fac(i-1)*i
-      enddo
-      
-      do j=0,nlocal
-         do i=1,npw
-            x2l(i,j)=(ts(i))**j/fac(j)
-         enddo
-      enddo
-
-      return
-      end
-C
-C
-C
-C***********************************************************************
-      subroutine g3dhermzero_vec(nd,hexp,ntermsh)
-      implicit none
-C***********************************************************************
-c
-c     This subroutine sets a vector multipole expansion to zero.
-c-----------------------------------------------------------------------
-c     INPUT:
-c
-c     nd     :   vector length (number of mpole expansions)
-c     ntermsh :   order of multipole expansion
-C---------------------------------------------------------------------
-c     OUTPUT:
-c
-c     hexp  :   coeffs for the expansion set to zero.
-C---------------------------------------------------------------------
-      integer n,ntermsh,nd,ii
-      real *8 hexp((ntermsh+1)*(ntermsh+1)*(ntermsh+1),nd)
-c
-      do ii=1,nd
-      do n=1,(ntermsh+1)*(ntermsh+1)*(ntermsh+1)
-         hexp(n,ii)=0.0d0
-      enddo
-      enddo
-      return
-      end
-c      
-c      
-c      
-c      
-C***********************************************************************
-      subroutine g3dlocalzero_vec(nd,local,nlocal)
-      implicit none
-C***********************************************************************
-c
-c     This subroutine sets a vector local expansion to zero.
-c-----------------------------------------------------------------------
-c     INPUT:
-c
-c     nd     :   vector length (number of mpole expansions)
-c     nlocal :   order of local expansion
-C---------------------------------------------------------------------
-c     OUTPUT:
-c
-c     local  :   coeffs for the expansion set to zero.
-C---------------------------------------------------------------------
-      integer n,nlocal,nd,ii
-      real *8 local((nlocal+1)*(nlocal+1)*(nlocal+1),nd)
-c
-      do ii=1,nd
-      do n=1,(nlocal+1)*(nlocal+1)*(nlocal+1)
-         local(n,ii)=0.0d0
-      enddo
-      enddo
-      return
-      end
-c      
-c      
-c      
-c      
-c
-c
-c
-c
-      subroutine getsqrtbinomialcoeffs(n,dc)
-C***********************************************************************
-c
-c     computes the sqrt of the binomial coefficients, from fmmcommon.f
-c-----------------------------------------------------------------------
-      implicit none
-      integer i,j,n
-      real *8 dc(0:n,0:n)
-      real *8, allocatable :: d(:,:)
-      allocate(d(0:n,0:n))
-
-      do i=0,n
-        do j=0,n
-          d(i,j) = 0
-          dc(i,j) = 0
-        enddo
-      enddo
-
-      do i=0,n
-        d(i,0) = 1
-        dc(i,0) = 1
-      enddo
-      do i=1,n
-        d(i,i) = 1
-        dc(i,i) = 1
-        do j=i+1,n
-          d(j,i) =d(j-1,i)+d(j-1,i-1)
-          dc(j,i) = sqrt(d(j,i))
-        enddo
-      enddo
-
-      return
-      end
-c
-c      
-c      
-c      
-c      
-C
 C
 C************************************************************************
 C
@@ -2269,7 +1950,7 @@ C***********************************************************************
       subroutine g3dformpwc_vec(nd,delta,sources,ns,charge,center,
      1    npw,ws,ts,pwexp)
 C
-C     This subroutine computes the Taylor expansions about
+C     This subroutine computes the PW expansions about
 C     the center CENT due to sources of strength charge().
 C
 C     INPUT
@@ -2280,12 +1961,14 @@ C     sources(2,ns) = coordinates of sources
 C     ns            = number of sources
 C     charge        = strength of sources
 C     center        = center of the expansion
-C     nlocal        = number of terms in local exp
+c     npw           = number of terms in 1d PW exp
+c     ws,ts         = weights and nodes in 1d PW exp
 C
 C     OUTPUT:
 C
-C     local         = local expansions 
-C
+C     pwexp         = 3d PW exp in the order of x, y, z (only one half in z)
+C                     incremented
+c      
       implicit real*8 (a-h,o-z)
       real *8 center(3),sources(3,ns),charge(nd,ns)
       real *8 ws(npw),ts(npw)
@@ -2345,6 +2028,221 @@ c
                   do j1=1,npw
                      pwexp(j1,j2,j3,ind)=pwexp(j1,j2,j3,ind)+
      1                   ytmp*ww1(j1)
+                  enddo
+               enddo
+            enddo
+         enddo
+      enddo
+
+      return
+      end
+C
+C
+C
+      subroutine g3dformpwd_vec(nd,delta,sources,ns,rnormal,dipstr,
+     1    center,npw,ws,ts,pwexp)
+C
+C     This subroutine computes the PW expansions about
+C     the center CENT due to sources of dipoles.
+C
+C     INPUT
+C
+c     nd            = vector length (parallel)
+C     delta         = Gaussian variance
+C     sources(2,ns) = coordinates of sources
+C     ns            = number of sources
+C     rnormal   = dipole directions
+C     dipstr    = dipole strengths 
+C     center        = center of the expansion
+c     npw           = number of terms in 1d PW exp
+c     ws,ts         = weights and nodes in 1d PW exp
+C
+C     OUTPUT:
+C
+C     pwexp         = 3d PW exp in the order of x, y, z (only one half in z)
+C                     incremented
+c      
+      implicit real*8 (a-h,o-z)
+      real *8 center(3),sources(3,ns)
+      real *8 rnormal(3,ns),dipstr(nd,ns)
+      real *8 ws(npw),ts(npw)
+      complex *16 pwexp(npw,npw,npw/2,nd)
+
+      integer i,ind,j1,j2,j3,j,npw2,itarg,k
+      real *8 x,y,z,dsq
+      complex *16 eye,r1,r2,r3,rz1,rz2,rz3,ry1,ry2,ry3
+      complex *16 qqx,qqy,qqz,qq1,qq2,qq3,ztmp
+      
+      complex *16 ww1(100),ww1x(100)
+      complex *16 ww2(100),ww2y(100)
+      complex *16 ww3(100),ww3z(100)
+C
+      eye = dcmplx(0,1)
+      dsq = 1.0D0/dsqrt(delta)
+C
+      npw2=npw/2
+C
+      do i=1,ns
+         x = (sources(1,i) - center(1))*dsq
+         y = (sources(2,i) - center(2))*dsq
+         z = (sources(3,i) - center(3))*dsq
+c
+         qqx = cdexp(-eye*ts(1)*x)
+         qqy = cdexp(-eye*ts(1)*y)
+         qqz = cdexp(-eye*ts(1)*z)
+         
+         qq1 = qqx
+         qq2 = qqy
+         qq3 = qqz
+         
+         qqx = qqx*qqx
+         qqy = qqy*qqy
+         qqz = qqz*qqz
+         
+
+         do j1=1,npw2
+            ww1(j1) = qq1*ws(j1)
+            ww2(j1) = qq2*ws(j1)            
+            ww3(j1) = qq3*ws(j1)            
+            qq1 = qq1*qqx
+            qq2 = qq2*qqy
+            qq3 = qq3*qqz
+            
+            ww1(j1+npw2) = dconjg(ww1(j1))
+            ww2(j1+npw2) = dconjg(ww2(j1))
+            ww3(j1+npw2) = dconjg(ww3(j1))
+         enddo
+
+         do j1=1,npw
+            ztmp = -eye*ts(j1)*dsq
+            ww1x(j1) = ww1(j1)*ztmp
+            ww2y(j1) = ww2(j1)*ztmp
+            ww3z(j1) = ww3(j1)*ztmp
+         enddo
+c
+         do ind = 1,nd
+            r1 = rnormal(1,i)*dipstr(ind,i)
+            r2 = rnormal(2,i)*dipstr(ind,i)
+            r3 = rnormal(3,i)*dipstr(ind,i)            
+            do j3=1,npw/2
+               rz1 = ww3(j3)*r1
+               rz2 = ww3(j3)*r2
+               rz3 = ww3z(j3)*r3               
+               do j2=1,npw
+                  ry1 = rz1*ww2(j2)
+                  ry2 = rz2*ww2y(j2)+rz3*ww2(j2)
+                  do j1=1,npw
+                     pwexp(j1,j2,j3,ind)=pwexp(j1,j2,j3,ind)+
+     1                   ww1x(j1)*ry1+ww1(j1)*ry2
+                  enddo
+               enddo
+            enddo
+         enddo
+      enddo
+
+      return
+      end
+C
+C
+C
+      subroutine g3dformpwcd_vec(nd,delta,sources,ns,charge,
+     1    rnormal,dipstr,center,npw,ws,ts,pwexp)
+C
+C     This subroutine computes the PW expansions about
+C     the center CENT due to charges and dipoles.
+C
+C     INPUT
+C
+c     nd            = vector length (parallel)
+C     delta         = Gaussian variance
+C     sources(2,ns) = coordinates of sources
+C     ns            = number of sources
+C     charge        = strength of sources
+C     rnormal       = dipole directions
+C     dipstr        = dipole strengths 
+C     center        = center of the expansion
+c     npw           = number of terms in 1d PW exp
+c     ws,ts         = weights and nodes in 1d PW exp
+C
+C     OUTPUT:
+C
+C     pwexp         = 3d PW exp in the order of x, y, z (only one half in z)
+C                     incremented
+c      
+      implicit real*8 (a-h,o-z)
+      real *8 center(3),sources(3,ns),charge(nd,ns)
+      real *8 rnormal(3,ns),dipstr(nd,ns)
+      real *8 ws(npw),ts(npw)
+      complex *16 pwexp(npw,npw,npw/2,nd)
+
+      integer i,ind,j1,j2,j3,j,npw2,itarg,k
+      real *8 x,y,z,dsq
+      complex *16 eye,r1,r2,r3,rz1,rz2,rz3,ry1,ry2,ry3
+      complex *16 qqx,qqy,qqz,qq1,qq2,qq3,ztmp
+      
+      complex *16 ww1(100),ww1x(100)
+      complex *16 ww2(100),ww2y(100)
+      complex *16 ww3(100),ww3z(100)
+C
+      eye = dcmplx(0,1)
+      dsq = 1.0D0/dsqrt(delta)
+C
+      npw2=npw/2
+C
+      do i=1,ns
+         x = (sources(1,i) - center(1))*dsq
+         y = (sources(2,i) - center(2))*dsq
+         z = (sources(3,i) - center(3))*dsq
+c
+         qqx = cdexp(-eye*ts(1)*x)
+         qqy = cdexp(-eye*ts(1)*y)
+         qqz = cdexp(-eye*ts(1)*z)
+         
+         qq1 = qqx
+         qq2 = qqy
+         qq3 = qqz
+         
+         qqx = qqx*qqx
+         qqy = qqy*qqy
+         qqz = qqz*qqz
+         
+
+         do j1=1,npw2
+            ww1(j1) = qq1*ws(j1)
+            ww2(j1) = qq2*ws(j1)            
+            ww3(j1) = qq3*ws(j1)            
+            qq1 = qq1*qqx
+            qq2 = qq2*qqy
+            qq3 = qq3*qqz
+            
+            ww1(j1+npw2) = dconjg(ww1(j1))
+            ww2(j1+npw2) = dconjg(ww2(j1))
+            ww3(j1+npw2) = dconjg(ww3(j1))
+         enddo
+
+         do j1=1,npw
+            ztmp = -eye*ts(j1)*dsq
+            ww1x(j1) = ww1(j1)*ztmp
+            ww2y(j1) = ww2(j1)*ztmp
+            ww3z(j1) = ww3(j1)*ztmp
+         enddo
+c
+         do ind = 1,nd
+            chg = charge(ind,i)
+            r1 = rnormal(1,i)*dipstr(ind,i)
+            r2 = rnormal(2,i)*dipstr(ind,i)
+            r3 = rnormal(3,i)*dipstr(ind,i)            
+            do j3=1,npw/2
+               ztmp = ww3(j3)*chg
+               rz1 = ww3(j3)*r1
+               rz2 = ww3(j3)*r2
+               rz3 = ww3z(j3)*r3               
+               do j2=1,npw
+                  ry1 = rz1*ww2(j2)
+                  ry2 = rz2*ww2y(j2)+(rz3+ztmp)*ww2(j2)
+                  do j1=1,npw
+                     pwexp(j1,j2,j3,ind)=pwexp(j1,j2,j3,ind)+
+     1                   ww1x(j1)*ry1+ww1(j1)*ry2
                   enddo
                enddo
             enddo
@@ -2760,7 +2658,9 @@ c
 C
 C
 C                  
-c*********************************************************************
+c      
+c*********************************************************************      
+C
 C
 C get plane wave approximation nodes and weights
 C
@@ -2795,20 +2695,18 @@ C
 C shift PW expansions (mp to loc, mp to mp, loc to loc)
 C
 C*********************************************************************
-      subroutine pw_translation_matrices(xmin,npw,nmax,
-     1              wshift,ts)
+      subroutine pw_translation_matrices(xmin,npw,ts,nmax,
+     1              wshift)
 C
-C     This subroutine precomputes all translation matrices for all SOE/X
-C     expansions from child to parent or vice versa.
-C
-c     used in mp to mp or loc to loc stage
+C     This subroutine precomputes all translation matrices for PW
+C     expansions for mp to loc at the cutoff level.
 c      
 C     INPUT
 C
-c     nd      = vector length (for multiple charges at same locations)
-C     npw     = number of terms in plane wave exp
+c     xmin    = scaled (by 1/sqrt(delta) boxsize at the cutoff level
+C     npw     = number of terms in 1d plane wave expansion
+C     ts      = 1d pw expansion nodes
 C     nmax    = number of different translation lengths in the whole scheme 
-C     ts      = pw nodes
 c      
 C     OUTPUT:
 C
@@ -2860,8 +2758,8 @@ c
 c
 c     
 c
-      subroutine merge_split_pw_matrices(xmin,npw,nmax,
-     1           wshift,ts)
+      subroutine merge_split_pw_matrices(xmin,npw,ts,nmax,
+     1           wshift)
 C
 C     This subroutine precomputes all translation matrices for 
 c     PW translations from child to parent or vice versa.
@@ -2870,9 +2768,9 @@ C     INPUT
 C
 c     xmin     = half of the scaled (by 1/sqrt(delta) size of the box 
 c                at the finest level
-C     npw     = number of terms in PW expansion
+C     npw      = number of terms in 1d PW expansion
+C     ws,ts    = real *8, 1d PW expansion weights and nodes
 C     nmax     = number of different translation lengths in the whole scheme 
-C     ws,ts    = PW weights and nodes
 C
 C     OUTPUT:
 C
@@ -2992,9 +2890,9 @@ C     to another PW expansion (pwexp2).
 C
 C     INPUT
 C
-c     nd      = vector length (for vector input)
-C     nexp      = number of terms in PW expansion
-C     pwexp1  = original expansion 
+c     nd        = vector length (for vector input)
+C     nexp      = total number of terms in 3D PW expansion
+C     pwexp1    = original expansion 
 C
 C     OUTPUT:
 C
@@ -3089,3 +2987,333 @@ c
 C
 c
 C
+C************************************************************************
+C
+C 1d translation matrices
+C
+C**********************************************************************
+      subroutine g3dh2lmat(nlocal,ntermsh,h2l)
+C
+C     This subroutine returns the matrix converting the 
+C     Hermite expansion to the local expansion
+C     
+C
+C     INPUT
+C
+C     nlocal       = number of terms in local exp
+C     ntermsh       = number of terms in the Hermite exp
+C
+C     OUTPUT:
+C
+C     h2l        = translation matrix
+C
+      implicit real*8 (a-h,o-z)
+      real *8 h2l(0:ntermsh,0:nlocal)
+      real *8, allocatable :: sqc(:,:),fac(:),hexpx(:)
+
+      ntot = ntermsh+nlocal
+      allocate(sqc(0:ntot,0:ntot),fac(0:nlocal),hexpx(0:ntot))
+      
+      call getsqrtbinomialcoeffs(ntot,sqc)
+      
+      fac(0)=1.0d0
+      do i=1,nlocal
+         fac(i)=fac(i-1)*sqrt(i*1.0d0)
+      enddo
+
+      x=0
+      hexpx(0)=1.0d0
+      hexpx(1)=2*x
+      
+      do i=1,ntermsh+nlocal-1
+         hexpx(i+1)=2.0d0*(x/dsqrt((i+1)*1.0d0)*hexpx(i)
+     1          -dsqrt(1.0d0*i/(i+1))*hexpx(i-1))
+      enddo
+
+      do i=0,ntermsh
+         do j=0,nlocal
+            h2l(i,j)=(-1)**j*hexpx(i+j)*sqc(i+j,i)/fac(j)
+         enddo
+      enddo
+      
+      return
+      end
+C
+C
+C
+C
+      subroutine g3dh2xmat(ntermsh,npw,ws,ts,h2x)
+C
+C     This subroutine returns the matrix converting the Hermite expansion
+C     to the planewave expansions
+C
+C     INPUT
+C
+C     ntermsh       = number of terms in Hermite exp
+C     npw          = number of exponentials in the planewave exp
+c
+C     ws,ts         = planewave exp weights and nodes
+C
+C     OUTPUT:
+C
+C     h2x       = translation matrices
+C
+      implicit real*8 (a-h,o-z)
+      real *8 ws(npw), ts(npw)
+cccc      complex *16 h2x(npw,0:ntermsh)
+      complex *16 h2x(0:ntermsh,npw)
+      real *8, allocatable:: fac(:)
+      complex *16 eye
+      
+      eye = dcmplx(0,1)
+      
+      allocate(fac(0:ntermsh))
+
+      fac(0)=1.0d0
+      do i=1,ntermsh
+         fac(i)=fac(i-1)/sqrt(dble(i))
+cccc         fac(i)=fac(i-1)/i
+      enddo
+      
+      do j=0,ntermsh
+         do i=1,npw
+cccc            h2x(i,j)=ws(i)*(-eye*ts(i))**j*fac(j)
+            h2x(j,i)=ws(i)*(-eye*ts(i))**j*fac(j)
+         enddo
+      enddo
+      
+      return
+      end
+C
+C
+C
+C
+      subroutine g3drh2xmat(ntermsh,npw,ws,ts,h2x)
+C
+C     This subroutine returns the matrix converting the Hermite expansion
+C     to the planewave expansions
+C
+C     INPUT
+C
+C     ntermsh       = number of terms in Hermite exp
+C     npw          = number of exponentials in the planewave exp
+c
+C     ws,ts         = planewave exp weights and nodes
+C
+C     OUTPUT:
+C
+C     h2x       = real translation matrices
+C
+      implicit real*8 (a-h,o-z)
+      real *8 ws(npw), ts(npw)
+cccc      real *8 h2x(npw,0:ntermsh)
+      real *8 h2x(0:ntermsh,npw)
+      real *8, allocatable:: fac(:)
+      complex *16 eye
+      
+      eye = dcmplx(0,1)
+      
+      allocate(fac(0:ntermsh))
+
+      fac(0)=1.0d0
+      do i=1,ntermsh
+         fac(i)=fac(i-1)/sqrt(dble(i))
+cccc         fac(i)=fac(i-1)/i
+      enddo
+      
+      do j=0,ntermsh
+         do i=1,npw
+cccc            h2x(i,j)=ws(i)*(-ts(i))**j*fac(j)
+            h2x(j,i)=ws(i)*(-ts(i))**j*fac(j)
+         enddo
+      enddo
+      
+      return
+      end
+C
+C
+C
+C            
+      subroutine g3dx2lmat(nlocal,npw,ws,ts,x2l)
+C
+C     This subroutine returns the matrices converting the planewave expansions
+C     to the local expansion
+C
+C     INPUT
+C
+C     nlocal       = number of terms in local exp
+C     npw          = number of terms in the planvewave exp 
+C     ws,ts         = planewave exp weights and nodes
+C
+C     OUTPUT:
+C
+C     x2l        = translation matrix
+C
+      implicit real*8 (a-h,o-z)
+      real *8 ws(npw), ts(npw)
+      complex *16 x2l(npw,0:nlocal)
+      complex *16 eye
+      real *8, allocatable:: fac(:)
+
+      allocate(fac(0:nlocal))
+      
+      eye = dcmplx(0,1)
+      
+      fac(0)=1.0d0
+      do i=1,nlocal
+         fac(i)=fac(i-1)*i
+      enddo
+      
+      do j=0,nlocal
+         do i=1,npw
+            x2l(i,j)=(eye*ts(i))**j/fac(j)
+         enddo
+      enddo
+
+      return
+      end
+C
+C
+C
+      subroutine g3drx2lmat(nlocal,npw,ws,ts,x2l)
+C
+C     This subroutine returns the matrices converting the planewave expansions
+C     to the local expansion
+C
+C     INPUT
+C
+C     nlocal       = number of terms in local exp
+C     npw          = number of terms in the planvewave exp 
+C     ws,ts         = planewave exp weights and nodes
+C
+C     OUTPUT:
+C
+C     x2l        = real translation matrix
+C
+      implicit real*8 (a-h,o-z)
+      real *8 ws(npw), ts(npw)
+      real *8 x2l(npw,0:nlocal)
+      complex *16 eye
+      real *8, allocatable:: fac(:)
+
+      allocate(fac(0:nlocal))
+      
+      eye = dcmplx(0,1)
+      
+      fac(0)=1.0d0
+      do i=1,nlocal
+         fac(i)=fac(i-1)*i
+      enddo
+      
+      do j=0,nlocal
+         do i=1,npw
+            x2l(i,j)=(ts(i))**j/fac(j)
+         enddo
+      enddo
+
+      return
+      end
+C
+C
+C
+C***********************************************************************
+      subroutine g3dhermzero_vec(nd,hexp,ntermsh)
+      implicit none
+C***********************************************************************
+c
+c     This subroutine sets a vector multipole expansion to zero.
+c-----------------------------------------------------------------------
+c     INPUT:
+c
+c     nd     :   vector length (number of mpole expansions)
+c     ntermsh :   order of multipole expansion
+C---------------------------------------------------------------------
+c     OUTPUT:
+c
+c     hexp  :   coeffs for the expansion set to zero.
+C---------------------------------------------------------------------
+      integer n,ntermsh,nd,ii
+      real *8 hexp((ntermsh+1)*(ntermsh+1)*(ntermsh+1),nd)
+c
+      do ii=1,nd
+      do n=1,(ntermsh+1)*(ntermsh+1)*(ntermsh+1)
+         hexp(n,ii)=0.0d0
+      enddo
+      enddo
+      return
+      end
+c      
+c      
+c      
+c      
+C***********************************************************************
+      subroutine g3dlocalzero_vec(nd,local,nlocal)
+      implicit none
+C***********************************************************************
+c
+c     This subroutine sets a vector local expansion to zero.
+c-----------------------------------------------------------------------
+c     INPUT:
+c
+c     nd     :   vector length (number of mpole expansions)
+c     nlocal :   order of local expansion
+C---------------------------------------------------------------------
+c     OUTPUT:
+c
+c     local  :   coeffs for the expansion set to zero.
+C---------------------------------------------------------------------
+      integer n,nlocal,nd,ii
+      real *8 local((nlocal+1)*(nlocal+1)*(nlocal+1),nd)
+c
+      do ii=1,nd
+      do n=1,(nlocal+1)*(nlocal+1)*(nlocal+1)
+         local(n,ii)=0.0d0
+      enddo
+      enddo
+      return
+      end
+c      
+c      
+c      
+c      
+c
+c
+c
+c
+      subroutine getsqrtbinomialcoeffs(n,dc)
+C***********************************************************************
+c
+c     computes the sqrt of the binomial coefficients, from fmmcommon.f
+c-----------------------------------------------------------------------
+      implicit none
+      integer i,j,n
+      real *8 dc(0:n,0:n)
+      real *8, allocatable :: d(:,:)
+      allocate(d(0:n,0:n))
+
+      do i=0,n
+        do j=0,n
+          d(i,j) = 0
+          dc(i,j) = 0
+        enddo
+      enddo
+
+      do i=0,n
+        d(i,0) = 1
+        dc(i,0) = 1
+      enddo
+      do i=1,n
+        d(i,i) = 1
+        dc(i,i) = 1
+        do j=i+1,n
+          d(j,i) =d(j-1,i)+d(j-1,i-1)
+          dc(j,i) = sqrt(d(j,i))
+        enddo
+      enddo
+
+      return
+      end
+c
+c      
+c      
+c      

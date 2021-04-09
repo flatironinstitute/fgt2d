@@ -120,7 +120,7 @@ c
       call dzero(hesstargex,6*ntt*nd)
       
       ifcharge = 1
-      ifdipole = 0
+      ifdipole = 1
       ifpgh = 1
       ifpghtarg = 0
       call prinf(' ifcharge is *',ifcharge,1)

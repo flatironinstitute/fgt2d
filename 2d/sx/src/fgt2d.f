@@ -184,7 +184,7 @@ c     than 20 for high precision calculation
          endif
          bsize = bsize/2
       enddo
-      
+
       write(6,*) ' nlmax',nlmax
       
       nlmin = 0

@@ -80,8 +80,8 @@ c        nonuniform distribution of sources
          sources(1,i) = (rin + rwig*cos(thet))*cos(thet)+0.5d0
          sources(2,i) = (rin + rwig*cos(thet))*sin(thet)+0.5d0
 
-cccc         sources(1,i) = hkrand(0)
-cccc         sources(2,i) = hkrand(0)
+         sources(1,i) = hkrand(0)
+         sources(2,i) = hkrand(0)
 
          rnormal(1,i) = hkrand(0)
          rnormal(2,i) = hkrand(0)

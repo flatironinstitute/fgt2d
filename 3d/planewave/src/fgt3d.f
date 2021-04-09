@@ -785,14 +785,14 @@ c     compute translation matrices for PW expansions
       nmax = 1
       allocate(wpwshift(nexp,-nmax:nmax,-nmax:nmax,-nmax:nmax))
       xmin  = boxsize(nlevstart)/sqrt(delta)
-      call pw_translation_matrices(xmin,npw,nmax,
-     1    wpwshift,ts)
+      call pw_translation_matrices(xmin,npw,ts,nmax,
+     1    wpwshift)
 
       nmax = nlevels-max(npwlevel,0)      
       allocate(wpwmsshift(nexp,8,nmax))
       xmin2 = boxsize(nlevels)/sqrt(delta)/2
-      call merge_split_pw_matrices(xmin2,npw,nmax,
-     1    wpwmsshift,ts)
+      call merge_split_pw_matrices(xmin2,npw,ts,nmax,
+     1    wpwmsshift)
 c     xmin is used in shiftpw subroutines to
 c     determine the right translation matrices
 c      
@@ -902,6 +902,7 @@ c
       
       do 1100 ilev = nlevels,max(npwlevel+1,0),-1
          nb=0
+         nb1=0
          dt=0
          dtt=0
          dttt=0
@@ -933,9 +934,9 @@ c           in this case, always do formpw
             nptsswitch=1000000
          else
 c           in this case, do formpw if npts is < nptsswitch
-            nptsswitch=10*int((r1+2*r2+r3)*npw/(3-r3))
+            nptsswitch=5*int((r1+2*r2+r3)*npw/(3-r3))
          endif
-cccc         print *, nptsswitch
+         print *, nptsswitch
          
          
          allocate(rh2xtmp(0:ntermsh(ilev),npw))
@@ -957,8 +958,8 @@ C$OMP$SCHEDULE(DYNAMIC)
                npts = iend-istart+1
 c              Check if current box is a leaf box            
                if(nchild.eq.0.and.npts.gt.0) then
-                  nb=nb+1
                   if (npts.gt.nptsswitch) then
+                     nb=nb+1
                      call cpu_time(t1)
 c                    form the Hermite expansion
                      call g3dformhc_vec(nd,delta,
@@ -976,6 +977,7 @@ cccc                     call g3dh2pw_vec(nd,ntermsh(ilev),npw,h2xtmp,
                      call cpu_time(tt2)
                      dtt=dtt+tt2-tt1
                   else
+                     nb1=nb1+1
                      call cpu_time(ttt1)
 c                    form PW expansion directly
                      call g3dformpwc_vec(nd,delta,
@@ -1001,16 +1003,35 @@ C$OMP$SCHEDULE(DYNAMIC)
                npts = iend-istart+1
 c              Check if current box is a leaf box            
                if(nchild.eq.0.and.npts.gt.0) then
-c                 form Hermite exp from sources
-                  call g3dformhd_vec(nd,delta,sourcesort(1,istart),
-     1                npts,rnormalsort(1,istart),
-     2                dipstrsort(1,istart),centers(1,ibox),
-     3                ntermsh(ilev),hexp)
-c                 Hermite exp to PW exp
+                  if (npts.gt.nptsswitch) then
+                     nb=nb+1
+                     call cpu_time(t1)
+c                    form Hermite exp from sources
+                     call g3dformhd_vec(nd,delta,sourcesort(1,istart),
+     1                   npts,rnormalsort(1,istart),
+     2                   dipstrsort(1,istart),centers(1,ibox),
+     3                   ntermsh(ilev),hexp)
+                     call cpu_time(t2)
+                     dt=dt+t2-t1
+                     call cpu_time(tt1)
+c                    Hermite exp to PW exp
 cccc                  call g3dh2pw_vec(nd,ntermsh(ilev),npw,h2x,
-cccc                  call g3dh2pw_real_vec(nd,ntermsh(ilev),npw,rh2xtmp,                  
-                  call g3dh2pw_vec(nd,ntermsh(ilev),npw,h2xtmp,
-     1                hexp,rmlexp(iaddr(1,ibox)))
+                     call g3dh2pw_real_vec(nd,ntermsh(ilev),npw,rh2xtmp,                  
+cccc                     call g3dh2pw_vec(nd,ntermsh(ilev),npw,h2xtmp,
+     1                   hexp,rmlexp(iaddr(1,ibox)))
+                     call cpu_time(tt2)
+                     dtt=dtt+tt2-tt1
+                  else
+                     nb1=nb1+1
+                     call cpu_time(ttt1)
+c                    form PW expansion directly
+                     call g3dformpwd_vec(nd,delta,sourcesort(1,istart),
+     1                   npts,rnormalsort(1,istart),
+     2                   dipstrsort(1,istart),centers(1,ibox),
+     3                   npw,ws,ts,rmlexp(iaddr(1,ibox)))
+                     call cpu_time(ttt2)
+                     dttt=dttt+ttt2-ttt1
+                  endif
                endif
             enddo
 C$OMP END PARALLEL DO 
@@ -1027,30 +1048,43 @@ C$OMP$SCHEDULE(DYNAMIC)
                npts = iend-istart+1
 c              Check if current box is a leaf box            
                if(nchild.eq.0.and.npts.gt.0) then
-                  nb=nb+1
-c                 form the Hermite expansion
-                  call g3dformhcd_vec(nd,delta,sourcesort(1,istart),
-     1                npts,chargesort(1,istart),rnormalsort(1,istart),
-     2                dipstrsort(1,istart),centers(1,ibox),
-     3                ntermsh(ilev),hexp)
-c                 Hermite exp to PW expansions
+                  if (npts.gt.nptsswitch) then
+                     nb=nb+1
+                     call cpu_time(t1)
+c                    form the Hermite expansion
+                     call g3dformhcd_vec(nd,delta,sourcesort(1,istart),
+     1                   npts,chargesort(1,istart),
+     2                   rnormalsort(1,istart),dipstrsort(1,istart),
+     3                   centers(1,ibox),ntermsh(ilev),hexp)
+                     call cpu_time(t2)
+                     dt=dt+t2-t1
+                     call cpu_time(tt1)
+c                    Hermite exp to PW expansions
 cccc                  call g3dh2pw_vec(nd,ntermsh(ilev),npw,h2x,
-cccc                  call g3dh2pw_real_vec(nd,ntermsh(ilev),npw,rh2xtmp,
-                  call g3dh2pw_vec(nd,ntermsh(ilev),npw,h2xtmp,
-     1                hexp,rmlexp(iaddr(1,ibox)))
+                     call g3dh2pw_real_vec(nd,ntermsh(ilev),npw,rh2xtmp,
+cccc                     call g3dh2pw_vec(nd,ntermsh(ilev),npw,h2xtmp,
+     1                   hexp,rmlexp(iaddr(1,ibox)))
+                     call cpu_time(tt2)
+                     dtt=dtt+tt2-tt1
+                  else
+                     nb1=nb1+1
+                     call cpu_time(ttt1)
+c                    form PW expansion directly
+                     call g3dformpwcd_vec(nd,delta,sourcesort(1,istart),
+     1                   npts,chargesort(1,istart),
+     2                   rnormalsort(1,istart),dipstrsort(1,istart),
+     3                   centers(1,ibox),npw,ws,ts,
+     4                   rmlexp(iaddr(1,ibox)))
+                     call cpu_time(ttt2)
+                     dttt=dttt+ttt2-ttt1
+                  endif
                endif
             enddo
 C     $OMP END PARALLEL DO
          endif
-cccc         if (ifprint.ge.1) then
-cccc            call prinf('ilev=*',ilev,1)
-cccc            call prinf('total number of boxes at this level=*',nb,1)
-cccc            call prin2('time on form Hermite=*',dt,1)
-cccc            call prin2('time on Hermite to PW=*',dtt,1)
-cccc      endif
  111     format ('ilev=', i1,4x, 'nb=',i6, 4x,'formhc=', f5.2, 4x,
-     1       'h2pw=', f5.2, 4x, 'formpw=', f5.2)         
-         write(6,111) ilev,nb,dt,dtt,dttt
+     1       'h2pw=', f5.2, 4x, 'nb1=',i6,4x, 'formpw=', f5.2)         
+         write(6,111) ilev,nb,dt,dtt,nb1,dttt
          
          deallocate(h2ltmp)
          deallocate(h2xtmp)
