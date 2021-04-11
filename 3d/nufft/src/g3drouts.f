@@ -69,16 +69,6 @@ c
 c     g3dcopypwexp_vec : copy PW expansion
 c
 c
-c
-c
-c     Note: the plane wave expansion uses different convention here.
-c
-c     In the directory "planewave", the plane wave expansion is stored
-c     in x, y, z in sequal, but only half of x are stored
-c
-c     Here, only half of z are stored, for the convenience of zero
-c     padding for NUFFT calls. The order is still x, y, then z.
-c
 c*********************************************************************
 C
 C form Hermite expansions (charge, dipole, charge & dipole)
@@ -1514,7 +1504,7 @@ C form PW expansions (charge, dipole, charge & dipole)
 C
 C*********************************************************************
       subroutine g3dformpwc_vec(nd,delta,eps,sources,ns,charge,
-     1            cent,npw,ws,ts,nexp,wnufft,ffexp)
+     1            cent,npw,ws,ts,wnufft,ffexp)
 C
 C     This subroutine computes the PW expansion about
 C     the center CENT due to the sources at locations
@@ -1524,11 +1514,14 @@ C     INPUT:
 C
 c     nd            = vector length (parallel)
 C     delta         = Gaussian variance
-C     sources   = source locations
-C     ns        = number of sources
-C     charge    = strengths of sources
-C     cent      = center of the expansion
-C     npw    = number of terms in PW expansion
+c     eps           = prescribed precision
+C     sources       = source locations
+C     ns            = number of sources
+C     charge        = strengths of sources
+C     cent          = center of the expansion
+C     npw           = number of terms in 1D PW expansion
+C     ws,ts         = 1D pw expansion weights and nodes
+C     wnufft        = real *8 (nexp) weights for nufft, tensor product of 1d weights
 C
 C     OUTPUT:
 C
@@ -1539,8 +1532,8 @@ C
       integer ns,npw
       real *8 cent(3),sources(3,ns),charge(nd,ns)
       real *8 ws(-npw/2:npw/2-1), ts(-npw/2:npw/2-1)
-      real *8 wnufft(nexp)
-      complex *16 ffexp(nexp,nd)
+      real *8 wnufft(npw*npw*npw/2)
+      complex *16 ffexp(npw*npw*npw/2,nd)
       real *8 x,y,chg
       real *8, allocatable ::  xj(:),yj(:),zj(:)
       complex *16, allocatable :: cj(:,:),fk(:,:,:,:),wj(:)
@@ -1601,7 +1594,7 @@ C
 C
 C
       subroutine g3dformpwd_vec(nd,delta,eps,sources,ns,rnormal,
-     1    dipstr,cent,npw,ws,ts,nexp,wnufft,ffexp)
+     1    dipstr,cent,npw,ws,ts,wnufft,ffexp)
 C
 C     This subroutine computes the PW expansion about
 C     the center CENT due to the sources at locations
@@ -1611,11 +1604,14 @@ C     INPUT:
 C
 c     nd            = vector length (parallel)
 C     delta         = Gaussian variance
-C     sources   = source locations
-C     ns        = number of sources
-C     charge    = strengths of sources
-C     cent      = center of the expansion
-C     npw    = number of terms in PW expansion
+C     sources       = source locations
+C     ns            = number of sources
+C     rnormal       = dipole directions
+C     dipstr        = dipole strengths 
+C     cent          = center of the expansion
+C     npw           = number of terms in 1D PW expansion
+C     ws,ts         = 1D pw expansion weights and nodes
+C     wnufft        = real *8 (nexp) weights for nufft, tensor product of 1d weights
 C
 C     OUTPUT:
 C
@@ -1627,8 +1623,8 @@ C
       real *8 cent(3),sources(3,ns),dipstr(nd,ns)
       real *8 rnormal(3,ns)
       real *8 ws(-npw/2:npw/2-1), ts(-npw/2:npw/2-1)
-      real *8 wnufft(nexp)
-      complex *16 ffexp(nexp,nd)
+      real *8 wnufft(npw*npw*npw/2)
+      complex *16 ffexp(npw*npw*npw/2,nd)
       real *8 x,y,chg
       real *8, allocatable ::  xj(:),yj(:),zj(:)
       complex *16, allocatable :: cj(:,:,:),fk(:,:,:,:,:),wj(:)
@@ -1697,7 +1693,7 @@ C
 C
 C
       subroutine g3dformpwcd_vec(nd,delta,eps,sources,ns,charge,
-     1    rnormal,dipstr,cent,npw,ws,ts,nexp,wnufft,ffexp)
+     1    rnormal,dipstr,cent,npw,ws,ts,wnufft,ffexp)
 C
 C     This subroutine computes the PW expansion about
 C     the center CENT due to the sources at locations
@@ -1707,11 +1703,16 @@ C     INPUT:
 C
 c     nd            = vector length (parallel)
 C     delta         = Gaussian variance
-C     sources   = source locations
-C     ns        = number of sources
-C     charge    = strengths of sources
-C     cent      = center of the expansion
-C     npw    = number of terms in PW expansion
+c     eps           = prescribed precision
+C     sources       = source locations
+C     ns            = number of sources
+C     charge        = strengths of sources
+C     rnormal       = dipole directions
+C     dipstr        = dipole strengths 
+C     cent          = center of the expansion
+C     npw           = number of terms in 1D PW expansion
+C     ws,ts         = 1D pw expansion weights and nodes
+C     wnufft        = real *8 weights for nufft, tensor product of 1d weights
 C
 C     OUTPUT:
 C
@@ -1723,8 +1724,8 @@ C
       real *8 cent(3),sources(3,ns),dipstr(nd,ns)
       real *8 rnormal(3,ns),charge(nd,ns)
       real *8 ws(-npw/2:npw/2-1), ts(-npw/2:npw/2-1)
-      real *8 wnufft(nexp)
-      complex *16 ffexp(nexp,nd)
+      real *8 wnufft(npw*npw*npw/2)
+      complex *16 ffexp(npw*npw*npw/2,nd)
       real *8 x,y,chg
       real *8, allocatable ::  xj(:),yj(:),zj(:)
       complex *16, allocatable :: cj(:,:,:),fk(:,:,:,:,:),wj(:)
@@ -1806,7 +1807,7 @@ C
 C
 C
       subroutine g3dpwevalp_vec(nd,delta,eps,center,npw,ws,ts,
-     1              nexp,pwexp,targ,nt,pot)
+     1              pwexp,targ,nt,pot)
 C
 C     This subroutine evaluates the plane wave 
 C     expansions about CENTER at location TARG
@@ -1816,12 +1817,13 @@ C     INPUT
 C
 c     nd            = vector length (for multiple charges at same locations)
 C     delta         = Gaussian variance
-C     charge        = strength of sources
+c     eps           = prescribed precision
 C     center        = center of the expansion
 C     npw           = number of Fourier plane waves
 C     ws,ts         = planewave weights and nodes
 C     pwexp         = pw expansions 
-C     targ          = target
+C     targ          = target locations
+C     nt            = number of targets
 C
 C     OUTPUT:
 C     pot           = potential (or vectorized potentials) incremented
@@ -1832,7 +1834,7 @@ C
       real *8 pot(nd,nt)
       
       real *8 ws(-npw/2:npw/2-1),ts(-npw/2:npw/2-1)
-      complex *16 pwexp(nexp,nd)
+      complex *16 pwexp(npw*npw*npw/2,nd)
       integer*8 nt8, npw8
 
       integer i,ind,j1,j2,j,npw2,itarg,k
@@ -1847,6 +1849,7 @@ c     this (since unallocated) used to pass a NULL ptr to FINUFFT...
       integer*8, allocatable :: null
 C
       eye = dcmplx(0,1)
+      nexp = npw*npw*npw/2
       
       allocate(xj(nt))
       allocate(yj(nt))
@@ -1894,7 +1897,7 @@ C
 C
 C
       subroutine g3dpwevalg_vec(nd,delta,eps,center,npw,ws,ts,
-     1              nexp,pwexp,targ,nt,pot,grad)
+     1              pwexp,targ,nt,pot,grad)
 C
 C     This subroutine evaluates the plane wave 
 C     expansions about CENTER at location TARG
@@ -1904,12 +1907,13 @@ C     INPUT
 C
 c     nd            = vector length (for multiple charges at same locations)
 C     delta         = Gaussian variance
-C     charge        = strength of sources
+c     eps           = prescribed precision
 C     center        = center of the expansion
 C     npw           = number of Fourier plane waves
 C     ws,ts         = planewave weights and nodes
 C     pwexp         = pw expansions 
-C     targ          = target
+C     targ          = target locations
+C     nt            = number of targets
 C
 C     OUTPUT:
 C     pot           = potential (or vectorized potentials) incremented
@@ -1921,7 +1925,7 @@ C
       real *8 pot(nd,nt),grad(nd,3,nt)
       
       real *8 ws(-npw/2:npw/2-1),ts(-npw/2:npw/2-1)
-      complex *16 pwexp(nexp,nd)
+      complex *16 pwexp(npw*npw*npw/2,nd)
       integer*8 nt8, npw8
 
       integer i,ind,j1,j2,j,npw2,itarg,k
@@ -1932,10 +1936,12 @@ C
       complex *16 z,cd
       real *8, allocatable ::  xj(:),yj(:),zj(:)
       complex *16, allocatable :: cj(:,:,:),fk(:,:,:),wj(:)
+      complex *16, allocatable :: zts(:)
 c     this (since unallocated) used to pass a NULL ptr to FINUFFT...
       integer*8, allocatable :: null
 C
       eye = dcmplx(0,1)
+      nexp = npw*npw*npw/2
       
       allocate(xj(nt))
       allocate(yj(nt))
@@ -1943,7 +1949,8 @@ C
       allocate(cj(nt,0:3,nd))
       allocate(wj(nt))
       allocate(fk(2*nexp,0:3,nd))
-
+      allocate(zts(-npw/2:npw/2-1))
+      
       dsq = 2*ts(0)/dsqrt(delta)
 C
       do j=1,nt
@@ -1954,20 +1961,21 @@ C
       enddo
 
       z = eye/dsqrt(delta)
+      do j=-npw/2,npw/2-1
+         zts(j)=z*ts(j)
+      enddo
       
       do ind = 1,nd
-         do j=1,nexp
-            fk(j,0,ind)=pwexp(j,ind)
-         enddo
-
          j=0
          do j3=-npw/2,-1
             do j2=-npw/2,npw/2-1
                do j1=-npw/2,npw/2-1
                   j=j+1
-                  fk(j,1,ind)=pwexp(j,ind)*z*ts(j1)
-                  fk(j,2,ind)=pwexp(j,ind)*z*ts(j2)
-                  fk(j,3,ind)=pwexp(j,ind)*z*ts(j3)
+                  fk(j,0,ind)=pwexp(j,ind)
+
+                  fk(j,1,ind)=pwexp(j,ind)*zts(j1)
+                  fk(j,2,ind)=pwexp(j,ind)*zts(j2)
+                  fk(j,3,ind)=pwexp(j,ind)*zts(j3)
                enddo
             enddo
          enddo
@@ -2004,7 +2012,7 @@ C
 C
 C
       subroutine g3dpwevalh_vec(nd,delta,eps,center,npw,ws,ts,
-     1              nexp,pwexp,targ,nt,pot,grad,hess)
+     1              pwexp,targ,nt,pot,grad,hess)
 C
 C     This subroutine evaluates the plane wave 
 C     expansions about CENTER at location TARG
@@ -2014,12 +2022,13 @@ C     INPUT
 C
 c     nd            = vector length (for multiple charges at same locations)
 C     delta         = Gaussian variance
-C     charge        = strength of sources
+c     eps           = prescribed precision
 C     center        = center of the expansion
 C     npw           = number of Fourier plane waves
 C     ws,ts         = planewave weights and nodes
 C     pwexp         = pw expansions 
-C     targ          = target
+C     targ          = target locations
+C     nt            = number of targets
 C
 C     OUTPUT:
 C     pot           = potential (or vectorized potentials) incremented
@@ -2032,7 +2041,7 @@ C
       real *8 pot(nd,nt),grad(nd,3,nt),hess(nd,6,nt)
       
       real *8 ws(-npw/2:npw/2-1),ts(-npw/2:npw/2-1)
-      complex *16 pwexp(nexp,nd)
+      complex *16 pwexp(npw*npw*npw/2,nd)
       integer*8 nt8, npw8
 
       integer i,ind,j1,j2,j,npw2,itarg,k
@@ -2049,6 +2058,8 @@ c     this (since unallocated) used to pass a NULL ptr to FINUFFT...
       integer*8, allocatable :: null
 C
       eye = dcmplx(0,1)
+
+      nexp = npw*npw*npw/2
       
       allocate(xj(nt))
       allocate(yj(nt))
@@ -2073,15 +2084,13 @@ C
       enddo
       
       do ind = 1,nd
-         do j=1,nexp
-            fk(j,0,ind)=pwexp(j,ind)
-         enddo
-
          j=0
          do j3=-npw/2,-1
             do j2=-npw/2,npw/2-1
                do j1=-npw/2,npw/2-1
                   j=j+1
+                  fk(j,0,ind)=pwexp(j,ind)
+
                   fk(j,1,ind)=pwexp(j,ind)*cp(j1)
                   fk(j,2,ind)=pwexp(j,ind)*cp(j2)
                   fk(j,3,ind)=pwexp(j,ind)*cp(j3)

@@ -123,8 +123,8 @@ c
       
       ifcharge = 1
       ifdipole = 0
-      ifpgh = 1
-      ifpghtarg = 0
+      ifpgh = 2
+      ifpghtarg = 3
       call prinf(' ifcharge is *',ifcharge,1)
       call prinf(' ifdipole is *',ifdipole,1)
       call prinf(' ifpgh is *',ifpgh,1)

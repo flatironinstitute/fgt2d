@@ -872,7 +872,7 @@ c                 form the pw expansion
                   call g3dformpwc_vec(nd,delta,eps,
      1                sourcesort(1,istart),npts,
      2                chargesort(1,istart),centers(1,ibox),
-     3                npw,ws,ts,nexp,wnufft,rmlexp(iaddr(1,ibox)))
+     3                npw,ws,ts,wnufft,rmlexp(iaddr(1,ibox)))
                   call cpu_time(t2)
                   dt=dt+t2-t1
 c                 copy the multipole PW exp into local PW exp
@@ -900,7 +900,7 @@ c                 form the pw expansion
      1                sourcesort(1,istart),npts,
      2                rnormalsort(1,istart),dipstrsort(1,istart),
      3                centers(1,ibox),
-     4                npw,ws,ts,nexp,wnufft,rmlexp(iaddr(1,ibox)))
+     4                npw,ws,ts,wnufft,rmlexp(iaddr(1,ibox)))
 c                 copy the multipole PW exp into local PW exp
                   call g3dcopypwexp_vec(nd,nexp,rmlexp(iaddr(1,ibox)),
      1                rmlexp(iaddr(2,ibox)))
@@ -924,7 +924,7 @@ c              Check if current box needs to form pw exp
      1                sourcesort(1,istart),npts,chargesort(1,istart),
      2                rnormalsort(1,istart),dipstrsort(1,istart),
      3                centers(1,ibox),
-     4                npw,ws,ts,nexp,wnufft,rmlexp(iaddr(1,ibox)))
+     4                npw,ws,ts,wnufft,rmlexp(iaddr(1,ibox)))
 c                 copy the multipole PW exp into local PW exp
                   call g3dcopypwexp_vec(nd,nexp,rmlexp(iaddr(1,ibox)),
      1                rmlexp(iaddr(2,ibox)))
@@ -1033,14 +1033,14 @@ c     evaluate local expansion at targets
                   if (ifpghtarg.eq.1) then
                      call g3dpwevalp_vec(nd,delta,eps,
      1                   centers(1,ibox),npw,ws,ts,
-     2                   nexp,rmlexp(iaddr(2,ibox)),
+     2                   rmlexp(iaddr(2,ibox)),
      3                   targetsort(1,istartt),
      4                   nptstarg,pottarg(1,istartt))
                   endif
                   if (ifpghtarg.eq.2) then
                      call g3dpwevalg_vec(nd,delta,eps,
      1                   centers(1,ibox),npw,ws,ts,
-     2                   nexp,rmlexp(iaddr(2,ibox)),
+     2                   rmlexp(iaddr(2,ibox)),
      3                   targetsort(1,istartt),
      4                   nptstarg,pottarg(1,istartt),
      5                   gradtarg(1,1,istartt))
@@ -1048,7 +1048,7 @@ c     evaluate local expansion at targets
                   if (ifpghtarg.eq.3) then
                      call g3dpwevalh_vec(nd,delta,eps,
      1                   centers(1,ibox),npw,ws,ts,
-     2                   nexp,rmlexp(iaddr(2,ibox)),
+     2                   rmlexp(iaddr(2,ibox)),
      3                   targetsort(1,istartt),
      4                   nptstarg,pottarg(1,istartt),
      5                   gradtarg(1,1,istartt),
@@ -1061,21 +1061,21 @@ c     evaluate local expansion at sources
                   if (ifpgh.eq.1) then
                      call g3dpwevalp_vec(nd,delta,eps,
      1                   centers(1,ibox),npw,ws,ts,
-     2                   nexp,rmlexp(iaddr(2,ibox)),
+     2                   rmlexp(iaddr(2,ibox)),
      3                   sourcesort(1,istarts),nptssrc,
      4                   pot(1,istarts))
                   endif
                   if (ifpgh.eq.2) then
                      call g3dpwevalg_vec(nd,delta,eps,
      1                   centers(1,ibox),npw,ws,ts,
-     2                   nexp,rmlexp(iaddr(2,ibox)),
+     2                   rmlexp(iaddr(2,ibox)),
      3                   sourcesort(1,istarts),nptssrc,
      4                   pot(1,istarts),grad(1,1,istarts))
                   endif
                   if (ifpgh.eq.3) then
                      call g3dpwevalh_vec(nd,delta,eps,
      1                   centers(1,ibox),npw,ws,ts,
-     2                   nexp,rmlexp(iaddr(2,ibox)),
+     2                   rmlexp(iaddr(2,ibox)),
      3                   sourcesort(1,istarts),nptssrc,
      4                   pot(1,istarts),grad(1,1,istarts),
      5                   hess(1,1,istarts))
