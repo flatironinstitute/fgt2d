@@ -28,7 +28,7 @@ c
       done = 1
       pi = atan(done)*4
 
-      nsrc =  1000 000
+      nsrc =  500 000
       ntarg = nsrc
       nd = 1
       delta = 5.0d-4
@@ -120,7 +120,7 @@ c
       call dzero(hesstargex,6*ntt*nd)
       
       ifcharge = 1
-      ifdipole = 1
+      ifdipole = 0
       ifpgh = 1
       ifpghtarg = 0
       call prinf(' ifcharge is *',ifcharge,1)

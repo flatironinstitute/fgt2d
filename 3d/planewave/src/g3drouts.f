@@ -1521,7 +1521,7 @@ cccc                     cd=cd+h2x(k3,j3)*hexp(j3,j2,j1,ind)
                      cd=cd+h2x(j3,k3)*hexp(j3,j2,j1,ind)
                   enddo
                   pxhyz(k3,j2,j1)=cd
-                  pxhyz(k3+npw/2,j2,j1)=conjg(cd)
+                  pxhyz(npw-k3+1,j2,j1)=conjg(cd)
                enddo
             enddo
          enddo
@@ -1621,7 +1621,7 @@ c        transform in x
                   ce=c0-c2
                   co=eye*(c1-c3)
                   pxhyz(k3,j2,j1)=ce+co
-                  pxhyz(k3+npw2,j2,j1)=ce-co
+                  pxhyz(npw-k3+1,j2,j1)=ce-co
                enddo
             enddo
          enddo
@@ -1649,7 +1649,7 @@ c        transform in y
                   ce=c0-c2
                   co=eye*(c1-c3)
                   pxyhz(k3,k2,j1)=ce+co
-                  pxyhz(k3,k2+npw2,j1)=ce-co
+                  pxyhz(k3,npw-k2+1,j1)=ce-co
                enddo
             enddo
          enddo
@@ -1813,7 +1813,7 @@ c        transform in x
                   cd=0
                   do j3=1,npw2
                      cd=cd+pw2l(j3,k3)*(pwexp(j3,j2,j1,ind)+
-     1                   pwexp(j3+npw2,j2,j1,ind))
+     1                   pwexp(npw-j3+1,j2,j1,ind))
                   enddo
                   lxpyz(k3,j2,j1)=cd
                enddo
@@ -1821,7 +1821,7 @@ c        transform in x
                   cd=0
                   do j3=1,npw2
                      cd=cd+pw2l(j3,k3)*(pwexp(j3,j2,j1,ind)-
-     1                   pwexp(j3+npw2,j2,j1,ind))
+     1                   pwexp(npw-j3+1,j2,j1,ind))
                   enddo
                   lxpyz(k3,j2,j1)=cd*eye
                enddo
@@ -1829,7 +1829,7 @@ c        transform in x
                   cd=0
                   do j3=1,npw2
                      cd=cd+pw2l(j3,k3)*(pwexp(j3,j2,j1,ind)+
-     1                   pwexp(j3+npw2,j2,j1,ind))
+     1                   pwexp(npw-j3+1,j2,j1,ind))
                   enddo
                   lxpyz(k3,j2,j1)=-cd
                enddo
@@ -1837,7 +1837,7 @@ c        transform in x
                   cd=0
                   do j3=1,npw2
                      cd=cd+pw2l(j3,k3)*(pwexp(j3,j2,j1,ind)-
-     1                   pwexp(j3+npw2,j2,j1,ind))
+     1                   pwexp(npw-j3+1,j2,j1,ind))
                   enddo
                   lxpyz(k3,j2,j1)=-eye*cd
                enddo
@@ -1850,7 +1850,7 @@ c        transform in y
                   cd=0
                   do j2=1,npw2
                      cd=cd+pw2l(j2,k2)*(lxpyz(k3,j2,j1)+
-     1                   lxpyz(k3,j2+npw2,j1))
+     1                   lxpyz(k3,npw-j2+1,j1))
                   enddo
                   lxypz(k3,k2,j1)=cd
                enddo
@@ -1860,7 +1860,7 @@ c        transform in y
                   cd=0
                   do j2=1,npw2
                      cd=cd+pw2l(j2,k2)*(lxpyz(k3,j2,j1)-
-     1                   lxpyz(k3,j2+npw2,j1))
+     1                   lxpyz(k3,npw-j2+1,j1))
                   enddo
                   lxypz(k3,k2,j1)=cd*eye
                enddo
@@ -1870,7 +1870,7 @@ c        transform in y
                   cd=0
                   do j2=1,npw/2
                      cd=cd+pw2l(j2,k2)*(lxpyz(k3,j2,j1)+
-     1                   lxpyz(k3,j2+npw2,j1))
+     1                   lxpyz(k3,npw-j2+1,j1))
                   enddo
                   lxypz(k3,k2,j1)=-cd
                enddo
@@ -1880,7 +1880,7 @@ c        transform in y
                   cd=0
                   do j2=1,npw/2
                      cd=cd+pw2l(j2,k2)*(lxpyz(k3,j2,j1)-
-     1                   lxpyz(k3,j2+npw2,j1))
+     1                   lxpyz(k3,npw-j2+1,j1))
                   enddo
                   lxypz(k3,k2,j1)=-eye*cd
                enddo
@@ -1993,9 +1993,9 @@ C
          y = (sources(2,i) - center(2))*dsq
          z = (sources(3,i) - center(3))*dsq
 c
-         qqx = cdexp(-eye*ts(1)*x)
-         qqy = cdexp(-eye*ts(1)*y)
-         qqz = cdexp(-eye*ts(1)*z)
+         qqx = cdexp(-eye*ts(npw2+1)*x)
+         qqy = cdexp(-eye*ts(npw2+1)*y)
+         qqz = cdexp(-eye*ts(npw2+1)*z)
          
          qq1 = qqx
          qq2 = qqy
@@ -2006,7 +2006,7 @@ c
          qqz = qqz*qqz
          
 
-         do j1=1,npw2
+         do j1=npw2+1,npw
             ww1(j1) = qq1*ws(j1)
             ww2(j1) = qq2*ws(j1)            
             ww3(j1) = qq3*ws(j1)            
@@ -2014,9 +2014,9 @@ c
             qq2 = qq2*qqy
             qq3 = qq3*qqz
             
-            ww1(j1+npw2) = dconjg(ww1(j1))
-            ww2(j1+npw2) = dconjg(ww2(j1))
-            ww3(j1+npw2) = dconjg(ww3(j1))
+            ww1(npw-j1+1) = dconjg(ww1(j1))
+            ww2(npw-j1+1) = dconjg(ww2(j1))
+            ww3(npw-j1+1) = dconjg(ww3(j1))
          enddo
 c
          do ind = 1,nd
@@ -2087,9 +2087,9 @@ C
          y = (sources(2,i) - center(2))*dsq
          z = (sources(3,i) - center(3))*dsq
 c
-         qqx = cdexp(-eye*ts(1)*x)
-         qqy = cdexp(-eye*ts(1)*y)
-         qqz = cdexp(-eye*ts(1)*z)
+         qqx = cdexp(-eye*ts(npw2+1)*x)
+         qqy = cdexp(-eye*ts(npw2+1)*y)
+         qqz = cdexp(-eye*ts(npw2+1)*z)
          
          qq1 = qqx
          qq2 = qqy
@@ -2100,7 +2100,7 @@ c
          qqz = qqz*qqz
          
 
-         do j1=1,npw2
+         do j1=npw2+1,npw
             ww1(j1) = qq1*ws(j1)
             ww2(j1) = qq2*ws(j1)            
             ww3(j1) = qq3*ws(j1)            
@@ -2108,9 +2108,9 @@ c
             qq2 = qq2*qqy
             qq3 = qq3*qqz
             
-            ww1(j1+npw2) = dconjg(ww1(j1))
-            ww2(j1+npw2) = dconjg(ww2(j1))
-            ww3(j1+npw2) = dconjg(ww3(j1))
+            ww1(npw-j1+1) = dconjg(ww1(j1))
+            ww2(npw-j1+1) = dconjg(ww2(j1))
+            ww3(npw-j1+1) = dconjg(ww3(j1))
          enddo
 
          do j1=1,npw
@@ -2194,9 +2194,9 @@ C
          y = (sources(2,i) - center(2))*dsq
          z = (sources(3,i) - center(3))*dsq
 c
-         qqx = cdexp(-eye*ts(1)*x)
-         qqy = cdexp(-eye*ts(1)*y)
-         qqz = cdexp(-eye*ts(1)*z)
+         qqx = cdexp(-eye*ts(npw2+1)*x)
+         qqy = cdexp(-eye*ts(npw2+1)*y)
+         qqz = cdexp(-eye*ts(npw2+1)*z)
          
          qq1 = qqx
          qq2 = qqy
@@ -2207,7 +2207,7 @@ c
          qqz = qqz*qqz
          
 
-         do j1=1,npw2
+         do j1=npw2+1,npw
             ww1(j1) = qq1*ws(j1)
             ww2(j1) = qq2*ws(j1)            
             ww3(j1) = qq3*ws(j1)            
@@ -2215,9 +2215,9 @@ c
             qq2 = qq2*qqy
             qq3 = qq3*qqz
             
-            ww1(j1+npw2) = dconjg(ww1(j1))
-            ww2(j1+npw2) = dconjg(ww2(j1))
-            ww3(j1+npw2) = dconjg(ww3(j1))
+            ww1(npw-j1+1) = dconjg(ww1(j1))
+            ww2(npw-j1+1) = dconjg(ww2(j1))
+            ww3(npw-j1+1) = dconjg(ww3(j1))
          enddo
 
          do j1=1,npw
@@ -2314,9 +2314,9 @@ C
          y = (targ(2,itarg) - center(2))*dsq
          z = (targ(3,itarg) - center(3))*dsq
 
-         qqx = cdexp(eye*tx(1)*x)
-         qqy = cdexp(eye*tx(1)*y)
-         qqz = cdexp(eye*tx(1)*z)
+         qqx = cdexp(eye*tx(npw2+1)*x)
+         qqy = cdexp(eye*tx(npw2+1)*y)
+         qqz = cdexp(eye*tx(npw2+1)*z)
          
          qq1 = qqx
          qq2 = qqy
@@ -2327,7 +2327,7 @@ C
          qqz = qqz*qqz
          
 
-         do j1=1,npw2
+         do j1=npw2+1,npw
             ww1(j1) = qq1
             ww2(j1) = qq2            
             ww3(j1) = qq3            
@@ -2335,9 +2335,9 @@ C
             qq2 = qq2*qqy
             qq3 = qq3*qqz
             
-            ww1(j1+npw2) = dconjg(ww1(j1))
-            ww2(j1+npw2) = dconjg(ww2(j1))
-            ww3(j1+npw2) = dconjg(ww3(j1))
+            ww1(npw-j1+1) = dconjg(ww1(j1))
+            ww2(npw-j1+1) = dconjg(ww2(j1))
+            ww3(npw-j1+1) = dconjg(ww3(j1))
          enddo
 c
          do ind = 1,nd
@@ -2416,9 +2416,9 @@ C
          y = (targ(2,itarg) - center(2))*dsq
          z = (targ(3,itarg) - center(3))*dsq
 
-         qqx = cdexp(eye*tx(1)*x)
-         qqy = cdexp(eye*tx(1)*y)
-         qqz = cdexp(eye*tx(1)*z)
+         qqx = cdexp(eye*tx(npw2+1)*x)
+         qqy = cdexp(eye*tx(npw2+1)*y)
+         qqz = cdexp(eye*tx(npw2+1)*z)
          qq1 = qqx
          qq2 = qqy
          qq3 = qqz
@@ -2427,21 +2427,21 @@ C
          qqz = qqz*qqz
          
 
-         do j1=1,npw2
+         do j1=npw2+1,npw
             ww1(j1) = qq1
             ww2(j1) = qq2            
             ww3(j1) = qq3            
-            ww1(j1+npw2) = dconjg(ww1(j1))
-            ww2(j1+npw2) = dconjg(ww2(j1))
-            ww3(j1+npw2) = dconjg(ww3(j1))
+            ww1(npw-j1+1) = dconjg(ww1(j1))
+            ww2(npw-j1+1) = dconjg(ww2(j1))
+            ww3(npw-j1+1) = dconjg(ww3(j1))
 
             ww1x(j1)= eye*tx(j1)*dsq*ww1(j1)
             ww2y(j1)= eye*tx(j1)*dsq*ww2(j1)
             ww3z(j1)= eye*tx(j1)*dsq*ww3(j1)
             
-            ww1x(j1+npw2)=dconjg(ww1x(j1))
-            ww2y(j1+npw2)=dconjg(ww2y(j1))
-            ww3z(j1+npw2)=dconjg(ww3z(j1))
+            ww1x(npw-j1+1)=dconjg(ww1x(j1))
+            ww2y(npw-j1+1)=dconjg(ww2y(j1))
+            ww3z(npw-j1+1)=dconjg(ww3z(j1))
 
             qq1 = qq1*qqx
             qq2 = qq2*qqy
@@ -2522,7 +2522,7 @@ C
 
       integer i,ind,j1,j2,j,npw2,itarg,k
       real *8 x,y,z,dsq
-      complex *16 eye
+      complex *16 eye,ztmp
       complex *16 qqx,qqy,qqz,qq1,qq2,qq3
       
       complex *16 ww1(100),ww1x(100),ww1xx(100)
@@ -2543,9 +2543,9 @@ C
          y = (targ(2,itarg) - center(2))*dsq
          z = (targ(3,itarg) - center(3))*dsq
 
-         qqx = cdexp(eye*tx(1)*x)
-         qqy = cdexp(eye*tx(1)*y)
-         qqz = cdexp(eye*tx(1)*z)
+         qqx = cdexp(eye*tx(npw2+1)*x)
+         qqy = cdexp(eye*tx(npw2+1)*y)
+         qqz = cdexp(eye*tx(npw2+1)*z)
          qq1 = qqx
          qq2 = qqy
          qq3 = qqz
@@ -2554,29 +2554,30 @@ C
          qqz = qqz*qqz
          
 
-         do j1=1,npw2
+         do j1=npw2+1,npw
             ww1(j1) = qq1
             ww2(j1) = qq2            
             ww3(j1) = qq3            
-            ww1(j1+npw2) = dconjg(ww1(j1))
-            ww2(j1+npw2) = dconjg(ww2(j1))
-            ww3(j1+npw2) = dconjg(ww3(j1))
+            ww1(npw-j1+1) = dconjg(ww1(j1))
+            ww2(npw-j1+1) = dconjg(ww2(j1))
+            ww3(npw-j1+1) = dconjg(ww3(j1))
 
-            ww1x(j1)= eye*tx(j1)*dsq*ww1(j1)
-            ww2y(j1)= eye*tx(j1)*dsq*ww2(j1)
-            ww3z(j1)= eye*tx(j1)*dsq*ww3(j1)
+            ztmp = eye*tx(j1)*dsq
+            ww1x(j1)= ztmp*ww1(j1)
+            ww2y(j1)= ztmp*ww2(j1)
+            ww3z(j1)= ztmp*ww3(j1)
             
-            ww1x(j1+npw2)=dconjg(ww1x(j1))
-            ww2y(j1+npw2)=dconjg(ww2y(j1))
-            ww3z(j1+npw2)=dconjg(ww3z(j1))
+            ww1x(npw-j1+1)=dconjg(ww1x(j1))
+            ww2y(npw-j1+1)=dconjg(ww2y(j1))
+            ww3z(npw-j1+1)=dconjg(ww3z(j1))
 
-            ww1xx(j1)= eye*tx(j1)*dsq*ww1x(j1)
-            ww2yy(j1)= eye*tx(j1)*dsq*ww2y(j1)
-            ww3zz(j1)= eye*tx(j1)*dsq*ww3z(j1)
+            ww1xx(j1)= ztmp*ww1x(j1)
+            ww2yy(j1)= ztmp*ww2y(j1)
+            ww3zz(j1)= ztmp*ww3z(j1)
             
-            ww1xx(j1+npw2)=dconjg(ww1xx(j1))
-            ww2yy(j1+npw2)=dconjg(ww2yy(j1))
-            ww3zz(j1+npw2)=dconjg(ww3zz(j1))
+            ww1xx(npw-j1+1)=dconjg(ww1xx(j1))
+            ww2yy(npw-j1+1)=dconjg(ww2yy(j1))
+            ww3zz(npw-j1+1)=dconjg(ww3zz(j1))
             
             qq1 = qq1*qqx
             qq2 = qq2*qqy
@@ -2670,18 +2671,16 @@ C
 C     Get planewave exp weights,nodes
 C
       implicit real *8 (a-h,o-z)
-      real *8 ws(npw),ts(npw)
-
+      real *8 ws(-npw/2:npw/2-1),ts(-npw/2:npw/2-1)
+      
       pi = 4.0d0*datan(1.0d0)
       npw2=npw/2
       h = pmax/npw2
       w = h/(2.0d0*dsqrt(pi))
 
-      do j =1,npw2
-         ts(j) = (j-0.5d0)*h
+      do j =-npw/2,npw/2-1
+         ts(j) = (j+0.5d0)*h
          ws(j) = w*dexp(-ts(j)*ts(j)/4)
-         ts(j+npw2)=-ts(j)
-         ws(j+npw2)=ws(j)
       enddo
 c
       return
@@ -2907,77 +2906,6 @@ C
       do ind=1,nd
          do j=1,nexp
             pwexp2(j,ind) = pwexp2(j,ind) + pwexp1(j,ind)
-         enddo
-      enddo
-c
-      return
-      end
-c
-C
-c
-C
-      subroutine g3dshiftpw0_vec(nd,delta,nn,pwexp1,
-     1              cent1,pwexp2,cent2,ws,ts)
-C
-C     This subroutine converts the PW expansion (pwexp1) about
-C     the center (CENT1) into an PW  expansion (pwexp2) about 
-C     (CENT2).
-C
-C     INPUT
-C
-c     nd      = vector length (for vector input)
-C     delta   = Gaussian variance
-C     nn      = number of terms in PW expansion
-C     pwexp1 = original expansion 
-C     cent1   = center of soeall1
-C     cent2   = center soeall2
-C     ws,ts         = PW exp weights and nodes
-C
-C     OUTPUT:
-C
-C     pwexp2 = shifted expansion 
-C
-      implicit none
-      integer nd,nn,j,j1,j2,j3,ind,nexp
-      real *8 cent1(3),cent2(3),x,y,z,delta,dsq
-      complex *16 pwexp1(nn/2,nn,nn,nd)
-      complex *16 pwexp2(nn/2,nn,nn,nd)
-      complex *16, allocatable :: wshift(:,:,:)
-      complex *16 ww1(100),ww2(100),ww3(100),eye
-      real *8 ws(nn),ts(nn)
-C
-      allocate(wshift(nn/2,nn,nn))
-      eye = dcmplx(0,1)
-      dsq = 1.0D0/dsqrt(delta)
-      x = (cent2(1) - cent1(1))*dsq
-      y = (cent2(2) - cent1(2))*dsq
-      z = (cent2(3) - cent1(3))*dsq
-      
-      do j1=1,nn/2
-         ww1(j1) = cdexp(eye*ts(j1)*x)
-         ww2(j1) = cdexp(eye*ts(j1)*y)
-         ww3(j1) = cdexp(eye*ts(j1)*z)
-         
-         ww2(nn/2+j1) = dconjg(ww2(j1))
-         ww3(nn/2+j1) = dconjg(ww3(j1))
-      enddo
-c
-      do j3=1,nn
-      do j2=1,nn
-      do j1=1,nn/2
-         wshift(j1,j2,j3) = ww1(j1)*ww2(j2)*ww3(j3)
-      enddo
-      enddo
-      enddo
-      
-      do ind=1,nd
-         do j3=1,nn
-         do j2=1,nn
-         do j1=1,nn/2
-            pwexp2(j1,j2,j3,ind) = pwexp2(j1,j2,j3,ind)
-     1          +pwexp1(j1,j2,j3,ind)*wshift(j1,j2,j3)
-         enddo
-         enddo
          enddo
       enddo
 c

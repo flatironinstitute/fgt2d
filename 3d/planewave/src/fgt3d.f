@@ -188,7 +188,7 @@ c     than 20 for high precision calculation
          bsize = bsize/2
       enddo
       
-      if (npwlevel .ge. 0) nlmax=npwlevel+1
+cccc      if (npwlevel .ge. 0) nlmax=npwlevel+1
       
       write(6,*) ' nlmax',nlmax
       
@@ -934,7 +934,7 @@ c           in this case, always do formpw
             nptsswitch=1000000
          else
 c           in this case, do formpw if npts is < nptsswitch
-            nptsswitch=5*int((r1+2*r2+r3)*npw/(3-r3))
+            nptsswitch=4*int((r1+2*r2+r3)*npw/(3-r3))
          endif
          print *, nptsswitch
          
@@ -1311,9 +1311,9 @@ c           in this case, always do pweval
             nptsswitch=1000000
          else
 c           in this case, do pweval if npts is < nptsswitch
-            nptsswitch=10*int((r1+r2+r3)*npw/(3-r3))
+            nptsswitch=5*int((r1+r2+r3)*npw/(3-r3))
          endif
-cccc         print *, nptsswitch
+         print *, nptsswitch
          
          nb=0
          nb1=0
