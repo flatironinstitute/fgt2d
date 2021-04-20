@@ -28,7 +28,7 @@ c
       done = 1
       pi = atan(done)*4
 
-      nsrc =  500 000
+      nsrc =  50 000
 cccc      nsrc =  1 000 000
       ntarg = nsrc
       nd = 1
