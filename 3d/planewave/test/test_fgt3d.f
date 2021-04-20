@@ -28,14 +28,14 @@ c
       done = 1
       pi = atan(done)*4
 
-      nsrc =  500 000
+      nsrc =  2 000 000
       ntarg = nsrc
       nd = 1
       delta = 5.0d-4
       bb = 1.0d0/(2.0d0**6)
       n = 4
       delta = bb*bb/(1.5*1.5)*2.0d0**n
-      delta = 1d-3
+      delta = 0.3d-3
       
       call prin2(' delta = *',delta,1)
       call prinf_long(' nsrc = *',nsrc,1)

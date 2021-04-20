@@ -35,25 +35,42 @@ C                         pot/grad
 c      
 C     g3dlevalh_vec : evaluates the local Taylor expansion 
 C                         pot/grad/Hessian
-c
-c     g3dformpwc_vec : computes the PW expansion due to charges
+c                      
+c     g3dformpwc_vec : computes the PW expansion due to charges directly
+c      
+c     g3dformpwd_vec : computes the PW expansion due to dipoles directly
+c                      
+c      
+c     g3dformpwcd_vec : computes the PW expansion directly due to charges and dipoles
+c                      
+c      
+c     g3dpwevalp_vec : evaluates the PW expansion directly
+c                      potential only
+c      
+c     g3dpwevalg_vec : evaluates the PW expansion directly
+c                      potential + gradient
+c      
+c     g3dpwevalh_vec : evaluates the PW expansion directly
+c                      potential + gradient + hessian
+c 
+c     g3dformpwc_fast_vec : computes the PW expansion due to charges
 c                      type 1 NUFFT is called once
 c      
-c     g3dformpwd_vec : computes the PW expansion due to dipoles
+c     g3dformpwd_fast_vec : computes the PW expansion due to dipoles
 c                      type 1 NUFFT is called three times using finufft3d1many
 c      
-c     g3dformpwcd_vec : computes the PW expansion due to charges and dipoles
+c     g3dformpwcd_fast_vec : computes the PW expansion due to charges and dipoles
 c                      type 1 NUFFT is called four times using finufft3d1many
 c      
-c     g3dpwevalp_vec : evaluates the PW expansion
+c     g3dpwevalp_fast_vec : evaluates the PW expansion
 c                      potential only, type 2 NUFFT is called once
 c                      using finufft3d2many
 c      
-c     g3dpwevalg_vec : evaluates the PW expansion
+c     g3dpwevalg_fast_vec : evaluates the PW expansion
 c                      potential + gradient
 c                      4 type 2 NUFFTs are called using finufft3d2many 
 c      
-c     g3dpwevalh_vec : evaluates the PW expansion
+c     g3dpwevalh_fast_vec : evaluates the PW expansion
 c                      potential + gradient + hessian
 c                      10 type 2 NUFFTs are called using finufft3d2many
 c      
@@ -1495,15 +1512,763 @@ c
 c      
 c      
 c
+cC***********************************************************************
+      subroutine g3dpwzero_vec(nd,pwexp,npw)
+      implicit none
+C***********************************************************************
 c
+c     This subroutine sets a vector planewave expansion to zero.
+c-----------------------------------------------------------------------
+c     INPUT:
 c
+c     nd     :   vector length (number of mpole expansions)
+c     npw    :   number of terms in 1d planewave expansion
+C---------------------------------------------------------------------
+c     OUTPUT:
+c
+c     pwexp  :   coeffs for the expansion set to zero.
+C---------------------------------------------------------------------
+      integer n,npw,nd,ii
+      complex *16 pwexp(npw*npw*npw/2,nd)
+c
+      do ii=1,nd
+         do n=1,npw*npw*npw/2
+            pwexp(n,ii)=0.0d0
+         enddo
+      enddo
+      
+      return
+      end
+c      
+c      
+c      
+c      
+c
+C************************************************************************
+C
+C     form PW exp subroutines (charge, dipole, charge+dipole)
+C
+C***********************************************************************
+      subroutine g3dformpwc_vec(nd,delta,sources,ns,charge,center,
+     1    npw,ws,ts,pwexp)
+C
+C     This subroutine computes the PW expansions about
+C     the center CENT due to sources of strength charge().
+C
+C     INPUT
+C
+c     nd            = vector length (parallel)
+C     delta         = Gaussian variance
+C     sources(2,ns) = coordinates of sources
+C     ns            = number of sources
+C     charge        = strength of sources
+C     center        = center of the expansion
+c     npw           = number of terms in 1d PW exp
+c     ws,ts         = weights and nodes in 1d PW exp
+C
+C     OUTPUT:
+C
+C     pwexp         = 3d PW exp in the order of x, y, z (only one half in z)
+C                     incremented
+c      
+      implicit real*8 (a-h,o-z)
+      real *8 center(3),sources(3,ns),charge(nd,ns)
+      real *8 ws(npw),ts(npw)
+      complex *16 pwexp(npw,npw,npw/2,nd)
+
+      integer i,ind,j1,j2,j3,j,npw2,itarg,k
+      real *8 x,y,z,dsq
+      complex *16 eye,ytmp,ztmp
+      complex *16 qqx,qqy,qqz,qq1,qq2,qq3
+      
+      complex *16 ww1(100)
+      complex *16 ww2(100)
+      complex *16 ww3(100)
+C
+      eye = dcmplx(0,1)
+      dsq = 1.0D0/dsqrt(delta)
+C
+      npw2=npw/2
+C
+      do i=1,ns
+         x = (sources(1,i) - center(1))*dsq
+         y = (sources(2,i) - center(2))*dsq
+         z = (sources(3,i) - center(3))*dsq
+c
+         qqx = cdexp(-eye*ts(npw2+1)*x)
+         qqy = cdexp(-eye*ts(npw2+1)*y)
+         qqz = cdexp(-eye*ts(npw2+1)*z)
+         
+         qq1 = qqx
+         qq2 = qqy
+         qq3 = qqz
+         
+         qqx = qqx*qqx
+         qqy = qqy*qqy
+         qqz = qqz*qqz
+         
+
+         do j1=npw2+1,npw
+            ww1(j1) = qq1*ws(j1)
+            ww2(j1) = qq2*ws(j1)            
+            ww3(j1) = qq3*ws(j1)            
+            qq1 = qq1*qqx
+            qq2 = qq2*qqy
+            qq3 = qq3*qqz
+            
+            ww1(npw-j1+1) = dconjg(ww1(j1))
+            ww2(npw-j1+1) = dconjg(ww2(j1))
+            ww3(npw-j1+1) = dconjg(ww3(j1))
+         enddo
+c
+         do ind = 1,nd
+            chg=charge(ind,i)
+            do j3=1,npw/2
+               ztmp=chg*ww3(j3)
+               do j2=1,npw
+                  ytmp=ztmp*ww2(j2)
+                  do j1=1,npw
+                     pwexp(j1,j2,j3,ind)=pwexp(j1,j2,j3,ind)+
+     1                   ytmp*ww1(j1)
+                  enddo
+               enddo
+            enddo
+         enddo
+      enddo
+
+      return
+      end
+C
+C
+C
+      subroutine g3dformpwd_vec(nd,delta,sources,ns,rnormal,dipstr,
+     1    center,npw,ws,ts,pwexp)
+C
+C     This subroutine computes the PW expansions about
+C     the center CENT due to sources of dipoles.
+C
+C     INPUT
+C
+c     nd            = vector length (parallel)
+C     delta         = Gaussian variance
+C     sources(2,ns) = coordinates of sources
+C     ns            = number of sources
+C     rnormal   = dipole directions
+C     dipstr    = dipole strengths 
+C     center        = center of the expansion
+c     npw           = number of terms in 1d PW exp
+c     ws,ts         = weights and nodes in 1d PW exp
+C
+C     OUTPUT:
+C
+C     pwexp         = 3d PW exp in the order of x, y, z (only one half in z)
+C                     incremented
+c      
+      implicit real*8 (a-h,o-z)
+      real *8 center(3),sources(3,ns)
+      real *8 rnormal(3,ns),dipstr(nd,ns)
+      real *8 ws(npw),ts(npw)
+      complex *16 pwexp(npw,npw,npw/2,nd)
+
+      integer i,ind,j1,j2,j3,j,npw2,itarg,k
+      real *8 x,y,z,dsq
+      complex *16 eye,r1,r2,r3,rz1,rz2,rz3,ry1,ry2,ry3
+      complex *16 qqx,qqy,qqz,qq1,qq2,qq3,ztmp
+      
+      complex *16 ww1(100),ww1x(100)
+      complex *16 ww2(100),ww2y(100)
+      complex *16 ww3(100),ww3z(100)
+C
+      eye = dcmplx(0,1)
+      dsq = 1.0D0/dsqrt(delta)
+C
+      npw2=npw/2
+C
+      do i=1,ns
+         x = (sources(1,i) - center(1))*dsq
+         y = (sources(2,i) - center(2))*dsq
+         z = (sources(3,i) - center(3))*dsq
+c
+         qqx = cdexp(-eye*ts(npw2+1)*x)
+         qqy = cdexp(-eye*ts(npw2+1)*y)
+         qqz = cdexp(-eye*ts(npw2+1)*z)
+         
+         qq1 = qqx
+         qq2 = qqy
+         qq3 = qqz
+         
+         qqx = qqx*qqx
+         qqy = qqy*qqy
+         qqz = qqz*qqz
+         
+
+         do j1=npw2+1,npw
+            ww1(j1) = qq1*ws(j1)
+            ww2(j1) = qq2*ws(j1)            
+            ww3(j1) = qq3*ws(j1)            
+            qq1 = qq1*qqx
+            qq2 = qq2*qqy
+            qq3 = qq3*qqz
+            
+            ww1(npw-j1+1) = dconjg(ww1(j1))
+            ww2(npw-j1+1) = dconjg(ww2(j1))
+            ww3(npw-j1+1) = dconjg(ww3(j1))
+         enddo
+
+         do j1=1,npw
+            ztmp = -eye*ts(j1)*dsq
+            ww1x(j1) = ww1(j1)*ztmp
+            ww2y(j1) = ww2(j1)*ztmp
+            ww3z(j1) = ww3(j1)*ztmp
+         enddo
+c
+         do ind = 1,nd
+            r1 = rnormal(1,i)*dipstr(ind,i)
+            r2 = rnormal(2,i)*dipstr(ind,i)
+            r3 = rnormal(3,i)*dipstr(ind,i)            
+            do j3=1,npw/2
+               rz1 = ww3(j3)*r1
+               rz2 = ww3(j3)*r2
+               rz3 = ww3z(j3)*r3               
+               do j2=1,npw
+                  ry1 = rz1*ww2(j2)
+                  ry2 = rz2*ww2y(j2)+rz3*ww2(j2)
+                  do j1=1,npw
+                     pwexp(j1,j2,j3,ind)=pwexp(j1,j2,j3,ind)+
+     1                   ww1x(j1)*ry1+ww1(j1)*ry2
+                  enddo
+               enddo
+            enddo
+         enddo
+      enddo
+
+      return
+      end
+C
+C
+C
+      subroutine g3dformpwcd_vec(nd,delta,sources,ns,charge,
+     1    rnormal,dipstr,center,npw,ws,ts,pwexp)
+C
+C     This subroutine computes the PW expansions about
+C     the center CENT due to charges and dipoles.
+C
+C     INPUT
+C
+c     nd            = vector length (parallel)
+C     delta         = Gaussian variance
+C     sources(2,ns) = coordinates of sources
+C     ns            = number of sources
+C     charge        = strength of sources
+C     rnormal       = dipole directions
+C     dipstr        = dipole strengths 
+C     center        = center of the expansion
+c     npw           = number of terms in 1d PW exp
+c     ws,ts         = weights and nodes in 1d PW exp
+C
+C     OUTPUT:
+C
+C     pwexp         = 3d PW exp in the order of x, y, z (only one half in z)
+C                     incremented
+c      
+      implicit real*8 (a-h,o-z)
+      real *8 center(3),sources(3,ns),charge(nd,ns)
+      real *8 rnormal(3,ns),dipstr(nd,ns)
+      real *8 ws(npw),ts(npw)
+      complex *16 pwexp(npw,npw,npw/2,nd)
+
+      integer i,ind,j1,j2,j3,j,npw2,itarg,k
+      real *8 x,y,z,dsq
+      complex *16 eye,r1,r2,r3,rz1,rz2,rz3,ry1,ry2,ry3
+      complex *16 qqx,qqy,qqz,qq1,qq2,qq3,ztmp
+      
+      complex *16 ww1(100),ww1x(100)
+      complex *16 ww2(100),ww2y(100)
+      complex *16 ww3(100),ww3z(100)
+C
+      eye = dcmplx(0,1)
+      dsq = 1.0D0/dsqrt(delta)
+C
+      npw2=npw/2
+C
+      do i=1,ns
+         x = (sources(1,i) - center(1))*dsq
+         y = (sources(2,i) - center(2))*dsq
+         z = (sources(3,i) - center(3))*dsq
+c
+         qqx = cdexp(-eye*ts(npw2+1)*x)
+         qqy = cdexp(-eye*ts(npw2+1)*y)
+         qqz = cdexp(-eye*ts(npw2+1)*z)
+         
+         qq1 = qqx
+         qq2 = qqy
+         qq3 = qqz
+         
+         qqx = qqx*qqx
+         qqy = qqy*qqy
+         qqz = qqz*qqz
+         
+
+         do j1=npw2+1,npw
+            ww1(j1) = qq1*ws(j1)
+            ww2(j1) = qq2*ws(j1)            
+            ww3(j1) = qq3*ws(j1)            
+            qq1 = qq1*qqx
+            qq2 = qq2*qqy
+            qq3 = qq3*qqz
+            
+            ww1(npw-j1+1) = dconjg(ww1(j1))
+            ww2(npw-j1+1) = dconjg(ww2(j1))
+            ww3(npw-j1+1) = dconjg(ww3(j1))
+         enddo
+
+         do j1=1,npw
+            ztmp = -eye*ts(j1)*dsq
+            ww1x(j1) = ww1(j1)*ztmp
+            ww2y(j1) = ww2(j1)*ztmp
+            ww3z(j1) = ww3(j1)*ztmp
+         enddo
+c
+         do ind = 1,nd
+            chg = charge(ind,i)
+            r1 = rnormal(1,i)*dipstr(ind,i)
+            r2 = rnormal(2,i)*dipstr(ind,i)
+            r3 = rnormal(3,i)*dipstr(ind,i)            
+            do j3=1,npw/2
+               ztmp = ww3(j3)*chg
+               rz1 = ww3(j3)*r1
+               rz2 = ww3(j3)*r2
+               rz3 = ww3z(j3)*r3               
+               do j2=1,npw
+                  ry1 = rz1*ww2(j2)
+                  ry2 = rz2*ww2y(j2)+(rz3+ztmp)*ww2(j2)
+                  do j1=1,npw
+                     pwexp(j1,j2,j3,ind)=pwexp(j1,j2,j3,ind)+
+     1                   ww1x(j1)*ry1+ww1(j1)*ry2
+                  enddo
+               enddo
+            enddo
+         enddo
+      enddo
+
+      return
+      end
+C
+C
+C
+c*********************************************************************
+C
+C evaluate PW expansions (potential, pot + grad, pot + grad + hess)
+C
+C*********************************************************************
+C
+C
+c
+C
+C
+C
+      subroutine g3dpwevalp_vec(nd,delta,center,npw,wx,tx,
+     1              pwexp,targ,ntarg,pot)
+C
+C     This subroutine evaluates the plane wave 
+C     expansions about CENTER at location TARG
+C     potential only
+C
+C     INPUT
+C
+c     nd            = vector length (for multiple charges at same locations)
+C     delta         = Gaussian variance
+C     charge        = strength of sources
+C     center        = center of the expansion
+C     npw           = number of Fourier plane waves
+C     wx,tx         = planewave weights and nodes
+C     pwexp         = pw expansions 
+C     targ          = target
+C
+C     OUTPUT:
+C     pot           = potential (or vectorized potentials) incremented
+C
+      implicit none
+      integer nd,npw,ntarg
+      real *8 delta,center(3),targ(3,ntarg)
+      real *8 pot(nd,ntarg)
+      
+      real *8 wx(npw),tx(npw)
+      complex *16 pwexp(npw,npw,npw/2,nd)
+
+      integer i,ind,j1,j2,j3,j,npw2,itarg,k
+      real *8 x,y,z,dsq
+      complex *16 eye
+      complex *16 qqx,qqy,qqz,qq1,qq2,qq3
+      
+      complex *16 ww1(100)
+      complex *16 ww2(100)
+      complex *16 ww3(100)
+
+      complex *16 c1,c2,c3
+C
+      eye = dcmplx(0,1)
+      dsq = 1.0D0/dsqrt(delta)
+C
+      npw2=npw/2
+      do itarg=1,ntarg
+         x = (targ(1,itarg) - center(1))*dsq
+         y = (targ(2,itarg) - center(2))*dsq
+         z = (targ(3,itarg) - center(3))*dsq
+
+         qqx = cdexp(eye*tx(npw2+1)*x)
+         qqy = cdexp(eye*tx(npw2+1)*y)
+         qqz = cdexp(eye*tx(npw2+1)*z)
+         
+         qq1 = qqx
+         qq2 = qqy
+         qq3 = qqz
+         
+         qqx = qqx*qqx
+         qqy = qqy*qqy
+         qqz = qqz*qqz
+         
+
+         do j1=npw2+1,npw
+            ww1(j1) = qq1
+            ww2(j1) = qq2            
+            ww3(j1) = qq3            
+            qq1 = qq1*qqx
+            qq2 = qq2*qqy
+            qq3 = qq3*qqz
+            
+            ww1(npw-j1+1) = dconjg(ww1(j1))
+            ww2(npw-j1+1) = dconjg(ww2(j1))
+            ww3(npw-j1+1) = dconjg(ww3(j1))
+         enddo
+c
+         do ind = 1,nd
+            c3=0
+            do j3=1,npw/2
+               c2=0
+               do j2=1,npw
+                  c1=0
+                  do j1=1,npw
+                     c1=c1+pwexp(j1,j2,j3,ind)*ww1(j1)
+                  enddo
+                  c2=c2+c1*ww2(j2)
+               enddo
+               c3=c3+c2*ww3(j3)
+            enddo
+            
+            pot(ind,itarg) = pot(ind,itarg)+dreal(c3)*2
+         enddo
+      enddo
+c
+      return
+      end
+C
+C
+c
+C
+C
+C
+      subroutine g3dpwevalg_vec(nd,delta,center,npw,wx,tx,
+     1              pwexp,targ,ntarg,pot,grad)
+C
+C     This subroutine evaluates the plane wave 
+C     expansions about CENTER at location TARG
+C     potential only
+C
+C     INPUT
+C
+c     nd            = vector length (for multiple charges at same locations)
+C     delta         = Gaussian variance
+C     charge        = strength of sources
+C     center        = center of the expansion
+C     npw           = number of Fourier plane waves
+C     wx,tx         = planewave weights and nodes
+C     pwexp         = pw expansions 
+C     targ          = target
+C
+C     OUTPUT:
+C     pot           = potential (or vectorized potentials) incremented
+C     grad          = gradient (or vectorized gradients) incremented
+C
+      implicit real*8 (a-h,o-z)
+      integer nd,npw,ntarg
+      real *8 delta,center(3),targ(3,ntarg)
+      real *8 pot(nd,ntarg),grad(nd,3,ntarg)
+      
+      real *8 wx(npw),tx(npw)
+      complex *16 pwexp(npw,npw,npw/2,nd)
+
+      integer i,ind,j1,j2,j,npw2,itarg,k
+      real *8 x,y,z,dsq
+      complex *16 eye
+      complex *16 qqx,qqy,qqz,qq1,qq2,qq3
+      
+      complex *16 ww1(100),ww1x(100)
+      complex *16 ww2(100),ww2y(100)
+      complex *16 ww3(100),ww3z(100)
+
+      complex *16 cd,g1,g2,g3,d1,d1x,d1y,d2,d2x
+C
+      eye = dcmplx(0,1)
+      dsq = 1.0D0/dsqrt(delta)
+C
+      npw2=npw/2
+      do itarg=1,ntarg
+         x = (targ(1,itarg) - center(1))*dsq
+         y = (targ(2,itarg) - center(2))*dsq
+         z = (targ(3,itarg) - center(3))*dsq
+
+         qqx = cdexp(eye*tx(npw2+1)*x)
+         qqy = cdexp(eye*tx(npw2+1)*y)
+         qqz = cdexp(eye*tx(npw2+1)*z)
+         qq1 = qqx
+         qq2 = qqy
+         qq3 = qqz
+         qqx = qqx*qqx
+         qqy = qqy*qqy
+         qqz = qqz*qqz
+         
+
+         do j1=npw2+1,npw
+            ww1(j1) = qq1
+            ww2(j1) = qq2            
+            ww3(j1) = qq3            
+            ww1(npw-j1+1) = dconjg(ww1(j1))
+            ww2(npw-j1+1) = dconjg(ww2(j1))
+            ww3(npw-j1+1) = dconjg(ww3(j1))
+
+            ww1x(j1)= eye*tx(j1)*dsq*ww1(j1)
+            ww2y(j1)= eye*tx(j1)*dsq*ww2(j1)
+            ww3z(j1)= eye*tx(j1)*dsq*ww3(j1)
+            
+            ww1x(npw-j1+1)=dconjg(ww1x(j1))
+            ww2y(npw-j1+1)=dconjg(ww2y(j1))
+            ww3z(npw-j1+1)=dconjg(ww3z(j1))
+
+            qq1 = qq1*qqx
+            qq2 = qq2*qqy
+            qq3 = qq3*qqz
+         enddo
+c
+         do ind = 1,nd
+            cd=0
+            g1=0
+            g2=0
+            g3=0
+            do j3=1,npw/2
+               d1=0
+               d1x=0
+               d1y=0
+               do j2=1,npw
+                  d2=0
+                  d2x=0
+                  do j1=1,npw
+                     d2 = d2+pwexp(j1,j2,j3,ind)*ww1(j1)
+                     d2x = d2x+pwexp(j1,j2,j3,ind)*ww1x(j1)
+                  enddo
+                  d1 = d1+d2*ww2(j2)
+                  d1x = d1x+d2x*ww2(j2)
+                  d1y = d1y+d2*ww2y(j2)
+               enddo
+               cd=cd+d1*ww3(j3)
+               g1=g1+d1x*ww3(j3)
+               g2=g2+d1y*ww3(j3)
+               g3=g3+d1*ww3z(j3)
+            enddo
+            
+            pot(ind,itarg) = pot(ind,itarg)+dreal(cd)*2
+            grad(ind,1,itarg) = grad(ind,1,itarg)+dreal(g1)*2
+            grad(ind,2,itarg) = grad(ind,2,itarg)+dreal(g2)*2
+            grad(ind,3,itarg) = grad(ind,3,itarg)+dreal(g3)*2
+         enddo
+      enddo
+c
+      return
+      end
+C
+C
+c
+C
+C
+C
+      subroutine g3dpwevalh_vec(nd,delta,center,npw,wx,tx,
+     1              pwexp,targ,ntarg,pot,grad,hess)
+C
+C     This subroutine evaluates the plane wave 
+C     expansions about CENTER at location TARG
+C     potential + gradient + hessian
+C
+C     INPUT
+C
+c     nd            = vector length (for multiple charges at same locations)
+C     delta         = Gaussian variance
+C     charge        = strength of sources
+C     center        = center of the expansion
+C     npw           = number of Fourier plane waves
+C     wx,tx         = planewave weights and nodes
+C     pwexp         = pw expansions 
+C     targ          = target
+C
+C     OUTPUT:
+C     pot           = potential (or vectorized potentials) incremented
+C     grad          = gradient (or vectorized gradients) incremented
+C     hess          = Hessian (or vectorized Hessians) incremented
+C
+      implicit real*8 (a-h,o-z)
+      integer nd,npw,ntarg
+      real *8 delta,center(3),targ(3,ntarg)
+      real *8 pot(nd,ntarg),grad(nd,3,ntarg),hess(nd,6,ntarg)
+      
+      real *8 wx(npw),tx(npw)
+      complex *16 pwexp(npw,npw,npw/2,nd)
+
+      integer i,ind,j1,j2,j,npw2,itarg,k
+      real *8 x,y,z,dsq
+      complex *16 eye,ztmp
+      complex *16 qqx,qqy,qqz,qq1,qq2,qq3
+      
+      complex *16 ww1(100),ww1x(100),ww1xx(100)
+      complex *16 ww2(100),ww2y(100),ww2yy(100)
+      complex *16 ww3(100),ww3z(100),ww3zz(100)
+
+      complex *16 dd,g1,g2,g3,d1,d1x,d1y,d2,d2x,d2xx
+      complex *16 h11,h22,h33,h12,h13,h23
+      complex *16 d1xx,d1yy,d1xy
+
+C
+      eye = dcmplx(0,1)
+      dsq = 1.0D0/dsqrt(delta)
+C
+      npw2=npw/2
+      do itarg=1,ntarg
+         x = (targ(1,itarg) - center(1))*dsq
+         y = (targ(2,itarg) - center(2))*dsq
+         z = (targ(3,itarg) - center(3))*dsq
+
+         qqx = cdexp(eye*tx(npw2+1)*x)
+         qqy = cdexp(eye*tx(npw2+1)*y)
+         qqz = cdexp(eye*tx(npw2+1)*z)
+         qq1 = qqx
+         qq2 = qqy
+         qq3 = qqz
+         qqx = qqx*qqx
+         qqy = qqy*qqy
+         qqz = qqz*qqz
+         
+
+         do j1=npw2+1,npw
+            ww1(j1) = qq1
+            ww2(j1) = qq2            
+            ww3(j1) = qq3            
+            ww1(npw-j1+1) = dconjg(ww1(j1))
+            ww2(npw-j1+1) = dconjg(ww2(j1))
+            ww3(npw-j1+1) = dconjg(ww3(j1))
+
+            ztmp = eye*tx(j1)*dsq
+            ww1x(j1)= ztmp*ww1(j1)
+            ww2y(j1)= ztmp*ww2(j1)
+            ww3z(j1)= ztmp*ww3(j1)
+            
+            ww1x(npw-j1+1)=dconjg(ww1x(j1))
+            ww2y(npw-j1+1)=dconjg(ww2y(j1))
+            ww3z(npw-j1+1)=dconjg(ww3z(j1))
+
+            ww1xx(j1)= ztmp*ww1x(j1)
+            ww2yy(j1)= ztmp*ww2y(j1)
+            ww3zz(j1)= ztmp*ww3z(j1)
+            
+            ww1xx(npw-j1+1)=dconjg(ww1xx(j1))
+            ww2yy(npw-j1+1)=dconjg(ww2yy(j1))
+            ww3zz(npw-j1+1)=dconjg(ww3zz(j1))
+            
+            qq1 = qq1*qqx
+            qq2 = qq2*qqy
+            qq3 = qq3*qqz
+         enddo
+c
+         do ind = 1,nd
+            dd=0
+            g1=0
+            g2=0
+            g3=0
+            h11=0
+            h22=0
+            h33=0
+            h12=0
+            h13=0
+            h23=0
+            do j3=1,npw/2
+               d1=0
+               d1x=0
+               d1y=0
+
+               d1xx=0
+               d1yy=0
+               d1xy=0               
+               do j2=1,npw
+                  d2=0
+                  d2x=0
+                  d2xx=0
+                  do j1=1,npw
+                     d2=d2+pwexp(j1,j2,j3,ind)*ww1(j1)
+                     d2x=d2x+pwexp(j1,j2,j3,ind)*ww1x(j1)
+                     d2xx=d2xx+pwexp(j1,j2,j3,ind)*ww1xx(j1)                  
+                  enddo
+                  d1=d1+d2*ww2(j2)
+                  d1x=d1x+d2x*ww2(j2)
+                  d1xx=d1xx+d2xx*ww2(j2)
+                  
+                  d1y=d1y+d2*ww2y(j2)
+                  d1xy=d1xy+d2x*ww2y(j2)
+                  
+                  d1yy=d1yy+d2*ww2yy(j2)
+               enddo
+               dd=dd+d1*ww3(j3)
+               g1=g1+d1x*ww3(j3)
+               g2=g2+d1y*ww3(j3)
+
+               h11=h11+d1xx*ww3(j3)
+               h22=h22+d1yy*ww3(j3)
+               h12=h12+d1xy*ww3(j3)
+               
+               g3=g3+d1*ww3z(j3)
+               h13=h13+d1x*ww3z(j3)
+               h23=h23+d1y*ww3z(j3)
+               
+               h33=h33+d1*ww3zz(j3)
+            enddo
+            pot(ind,itarg) = pot(ind,itarg)+dreal(dd)*2
+            
+            grad(ind,1,itarg) = grad(ind,1,itarg)+dreal(g1)*2
+            grad(ind,2,itarg) = grad(ind,2,itarg)+dreal(g2)*2
+            grad(ind,3,itarg) = grad(ind,3,itarg)+dreal(g3)*2
+
+            hess(ind,1,itarg) = hess(ind,1,itarg)+dreal(h11)*2
+            hess(ind,2,itarg) = hess(ind,2,itarg)+dreal(h22)*2
+            hess(ind,3,itarg) = hess(ind,3,itarg)+dreal(h33)*2
+
+            hess(ind,4,itarg) = hess(ind,4,itarg)+dreal(h12)*2
+            hess(ind,5,itarg) = hess(ind,5,itarg)+dreal(h13)*2
+            hess(ind,6,itarg) = hess(ind,6,itarg)+dreal(h23)*2
+         enddo
+      enddo
+c
+      return
+      end
+C
+C
+c
+C
+C
+C                  
+c      
 c
 c*********************************************************************
 C
-C form PW expansions (charge, dipole, charge & dipole)
+C form PW expansions (charge, dipole, charge & dipole) using NUFFT
 C
 C*********************************************************************
-      subroutine g3dformpwc_vec(nd,delta,eps,sources,ns,charge,
+      subroutine g3dformpwc_fast_vec(nd,delta,eps,sources,ns,charge,
      1            cent,npw,ws,ts,wnufft,ffexp)
 C
 C     This subroutine computes the PW expansion about
@@ -1593,7 +2358,7 @@ c
 C
 C
 C
-      subroutine g3dformpwd_vec(nd,delta,eps,sources,ns,rnormal,
+      subroutine g3dformpwd_fast_vec(nd,delta,eps,sources,ns,rnormal,
      1    dipstr,cent,npw,ws,ts,wnufft,ffexp)
 C
 C     This subroutine computes the PW expansion about
@@ -1692,7 +2457,7 @@ c
 C
 C
 C
-      subroutine g3dformpwcd_vec(nd,delta,eps,sources,ns,charge,
+      subroutine g3dformpwcd_fast_vec(nd,delta,eps,sources,ns,charge,
      1    rnormal,dipstr,cent,npw,ws,ts,wnufft,ffexp)
 C
 C     This subroutine computes the PW expansion about
@@ -1798,6 +2563,7 @@ C
 c*********************************************************************
 C
 C evaluate PW expansions (potential, pot + grad, pot + grad + hess)
+C using NUFFT
 C
 C*********************************************************************
 C
@@ -1806,7 +2572,7 @@ c
 C
 C
 C
-      subroutine g3dpwevalp_vec(nd,delta,eps,center,npw,ws,ts,
+      subroutine g3dpwevalp_fast_vec(nd,delta,eps,center,npw,ws,ts,
      1              pwexp,targ,nt,pot)
 C
 C     This subroutine evaluates the plane wave 
@@ -1896,7 +2662,7 @@ c
 C
 C
 C
-      subroutine g3dpwevalg_vec(nd,delta,eps,center,npw,ws,ts,
+      subroutine g3dpwevalg_fast_vec(nd,delta,eps,center,npw,ws,ts,
      1              pwexp,targ,nt,pot,grad)
 C
 C     This subroutine evaluates the plane wave 
@@ -2011,7 +2777,7 @@ c
 C
 C
 C
-      subroutine g3dpwevalh_vec(nd,delta,eps,center,npw,ws,ts,
+      subroutine g3dpwevalh_fast_vec(nd,delta,eps,center,npw,ws,ts,
      1              pwexp,targ,nt,pot,grad,hess)
 C
 C     This subroutine evaluates the plane wave 

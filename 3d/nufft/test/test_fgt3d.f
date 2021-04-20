@@ -28,7 +28,7 @@ c
       done = 1
       pi = atan(done)*4
 
-      nsrc =  2 000 000
+      nsrc =  500 000
 cccc      nsrc =  1 000 000
       ntarg = nsrc
       nd = 1
@@ -37,7 +37,7 @@ cccc      nsrc =  1 000 000
       n = 1
       delta = bb*bb/(1.5*1.5)*2.0d0**n
 cccc      delta = 0.1*delta
-      delta=1.0d-3
+      delta=0.3d-3*4
       
       call prin2(' delta = *',delta,1)
       call prinf_long(' nsrc = *',nsrc,1)
@@ -123,8 +123,8 @@ c
       
       ifcharge = 1
       ifdipole = 0
-      ifpgh = 2
-      ifpghtarg = 3
+      ifpgh = 1
+      ifpghtarg = 0
       call prinf(' ifcharge is *',ifcharge,1)
       call prinf(' ifdipole is *',ifdipole,1)
       call prinf(' ifpgh is *',ifpgh,1)

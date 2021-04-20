@@ -158,11 +158,11 @@ c
       idivflag =0
 c     ndiv0 is the maximum number of points per box above the cutoff level
 c     it determines the speed of the algorithm when delta goes to zero.
-      ndiv0 = 40
+      ndiv0 = 20
 c     ndiv is the maximum number of points per box at or below the cutoff level
 c     it's determined by numerical experiments on finding the crossover point
 c     between direct evaluation and the fast scheme.
-      ndiv = 200
+      ndiv = 100
 c
       ifunif = 0
       iper = 0
@@ -408,7 +408,6 @@ c     allocate memory need by multipole, local expansions at all levels
 c     
 c     irmlexp is pointer for workspace need by various expansions.
 c
-      print *, nlevels, npwlevel
       call g3dmpalloc(nd,itree,iaddr,
      1    nlevels,npwlevel,lmptot,
      2    ntermsh,nlocal,npw)
@@ -674,6 +673,7 @@ c
       integer ifprint
 
       integer nexp,nmax,ncutlevbox
+      integer ncdir,ncddir,nddir,npdir,ngdir,nhdir
       
       integer nn,jx,jy,jz,nlevstart,nlevend
 
@@ -841,6 +841,13 @@ ccccC$OMP END PARALLEL DO
 cccc       enddo
 c
 c
+      ncdir = 550
+      nddir = 750
+      ncddir = 1000
+
+      npdir = 450
+      ngdir = 900
+      nhdir = 1200
 
       call prinf('laddr=*',laddr,2*(nlevels+1))
       
@@ -869,10 +876,17 @@ c              Check if current box needs to form pw exp
                   nb=nb+1
                   call cpu_time(t1)
 c                 form the pw expansion
-                  call g3dformpwc_vec(nd,delta,eps,
-     1                sourcesort(1,istart),npts,
-     2                chargesort(1,istart),centers(1,ibox),
-     3                npw,ws,ts,wnufft,rmlexp(iaddr(1,ibox)))
+                  if (npts.gt.ncdir) then
+                     call g3dformpwc_fast_vec(nd,delta,eps,
+     1                   sourcesort(1,istart),npts,
+     2                   chargesort(1,istart),centers(1,ibox),
+     3                   npw,ws,ts,wnufft,rmlexp(iaddr(1,ibox)))
+                  else
+                     call g3dformpwc_vec(nd,delta,
+     1                   sourcesort(1,istart),npts,
+     2                   chargesort(1,istart),centers(1,ibox),
+     3                   npw,ws,ts,rmlexp(iaddr(1,ibox)))
+                  endif
                   call cpu_time(t2)
                   dt=dt+t2-t1
 c                 copy the multipole PW exp into local PW exp
@@ -896,11 +910,19 @@ C$OMP$SCHEDULE(DYNAMIC)
 c              Check if current box needs to form pw exp           
                if(npts.gt.ndiv) then
 c                 form the pw expansion
-                  call g3dformpwd_vec(nd,delta,eps,
-     1                sourcesort(1,istart),npts,
-     2                rnormalsort(1,istart),dipstrsort(1,istart),
-     3                centers(1,ibox),
-     4                npw,ws,ts,wnufft,rmlexp(iaddr(1,ibox)))
+                  if (npts.gt.nddir) then
+                     call g3dformpwd_fast_vec(nd,delta,eps,
+     1                   sourcesort(1,istart),npts,
+     2                   rnormalsort(1,istart),dipstrsort(1,istart),
+     3                   centers(1,ibox),
+     4                   npw,ws,ts,wnufft,rmlexp(iaddr(1,ibox)))
+                  else
+                     call g3dformpwd_vec(nd,delta,
+     1                   sourcesort(1,istart),npts,
+     2                   rnormalsort(1,istart),dipstrsort(1,istart),
+     3                   centers(1,ibox),
+     4                   npw,ws,ts,rmlexp(iaddr(1,ibox)))
+                  endif
 c                 copy the multipole PW exp into local PW exp
                   call g3dcopypwexp_vec(nd,nexp,rmlexp(iaddr(1,ibox)),
      1                rmlexp(iaddr(2,ibox)))
@@ -920,11 +942,19 @@ C$OMP$SCHEDULE(DYNAMIC)
                npts = iend-istart+1
 c              Check if current box needs to form pw exp          
                if(npts.gt.ndiv) then
-                  call g3dformpwcd_vec(nd,delta,eps,
-     1                sourcesort(1,istart),npts,chargesort(1,istart),
-     2                rnormalsort(1,istart),dipstrsort(1,istart),
-     3                centers(1,ibox),
-     4                npw,ws,ts,wnufft,rmlexp(iaddr(1,ibox)))
+                  if (npts.gt.ncddir) then
+                     call g3dformpwcd_fast_vec(nd,delta,eps,
+     1                   sourcesort(1,istart),npts,chargesort(1,istart),
+     2                   rnormalsort(1,istart),dipstrsort(1,istart),
+     3                   centers(1,ibox),
+     4                   npw,ws,ts,wnufft,rmlexp(iaddr(1,ibox)))
+                  else
+                     call g3dformpwcd_vec(nd,delta,
+     1                   sourcesort(1,istart),npts,chargesort(1,istart),
+     2                   rnormalsort(1,istart),dipstrsort(1,istart),
+     3                   centers(1,ibox),
+     4                   npw,ws,ts,rmlexp(iaddr(1,ibox)))
+                  endif                     
 c                 copy the multipole PW exp into local PW exp
                   call g3dcopypwexp_vec(nd,nexp,rmlexp(iaddr(1,ibox)),
      1                rmlexp(iaddr(2,ibox)))
@@ -1016,9 +1046,7 @@ C$OMP$SCHEDULE(DYNAMIC)
          call cpu_time(t1)
          nb=0
          do ibox = laddr(1,ilev),laddr(2,ilev)
-            if (ifpwexp(ibox).eq.0) then
-c              do nothing here
-            else    
+            if (ifpwexp(ibox).eq.1) then
                istartt = itargse(1,ibox) 
                iendt = itargse(2,ibox)
                nptstarg = iendt-istartt + 1
@@ -1030,23 +1058,44 @@ c              do nothing here
                nb=nb+1
 c     evaluate local expansion at targets
                if(nptstarg.gt.0) then
-                  if (ifpghtarg.eq.1) then
-                     call g3dpwevalp_vec(nd,delta,eps,
+                  if (ifpghtarg.eq.1.and.nptstarg.gt.npdir) then
+                     call g3dpwevalp_fast_vec(nd,delta,eps,
+     1                   centers(1,ibox),npw,ws,ts,
+     2                   rmlexp(iaddr(2,ibox)),
+     3                   targetsort(1,istartt),
+     4                   nptstarg,pottarg(1,istartt))
+                  elseif (ifpghtarg.eq.1.and.nptstarg.le.npdir) then
+                     call g3dpwevalp_vec(nd,delta,
      1                   centers(1,ibox),npw,ws,ts,
      2                   rmlexp(iaddr(2,ibox)),
      3                   targetsort(1,istartt),
      4                   nptstarg,pottarg(1,istartt))
                   endif
-                  if (ifpghtarg.eq.2) then
-                     call g3dpwevalg_vec(nd,delta,eps,
+                  if (ifpghtarg.eq.2.and.nptstarg.gt.ngdir) then
+                     call g3dpwevalg_fast_vec(nd,delta,eps,
+     1                   centers(1,ibox),npw,ws,ts,
+     2                   rmlexp(iaddr(2,ibox)),
+     3                   targetsort(1,istartt),
+     4                   nptstarg,pottarg(1,istartt),
+     5                   gradtarg(1,1,istartt))
+                  elseif (ifpghtarg.eq.2.and.nptstarg.le.ngdir) then
+                     call g3dpwevalg_vec(nd,delta,
      1                   centers(1,ibox),npw,ws,ts,
      2                   rmlexp(iaddr(2,ibox)),
      3                   targetsort(1,istartt),
      4                   nptstarg,pottarg(1,istartt),
      5                   gradtarg(1,1,istartt))
                   endif
-                  if (ifpghtarg.eq.3) then
-                     call g3dpwevalh_vec(nd,delta,eps,
+                  if (ifpghtarg.eq.3.and.nptstarg.gt.nhdir) then
+                     call g3dpwevalh_fast_vec(nd,delta,eps,
+     1                   centers(1,ibox),npw,ws,ts,
+     2                   rmlexp(iaddr(2,ibox)),
+     3                   targetsort(1,istartt),
+     4                   nptstarg,pottarg(1,istartt),
+     5                   gradtarg(1,1,istartt),
+     6                   hesstarg(1,1,istartt))
+                  elseif (ifpghtarg.eq.3.and.nptstarg.le.nhdir) then
+                     call g3dpwevalh_vec(nd,delta,
      1                   centers(1,ibox),npw,ws,ts,
      2                   rmlexp(iaddr(2,ibox)),
      3                   targetsort(1,istartt),
@@ -1058,22 +1107,43 @@ c     evaluate local expansion at targets
 c     
 c     evaluate local expansion at sources
                if (nptssrc.gt.0) then
-                  if (ifpgh.eq.1) then
-                     call g3dpwevalp_vec(nd,delta,eps,
+                  if (ifpgh.eq.1.) then
+                     if(nptssrc.gt.npdir) then
+                     call g3dpwevalp_fast_vec(nd,delta,eps,
      1                   centers(1,ibox),npw,ws,ts,
      2                   rmlexp(iaddr(2,ibox)),
      3                   sourcesort(1,istarts),nptssrc,
      4                   pot(1,istarts))
+                     else
+                     call g3dpwevalp_vec(nd,delta,
+     1                   centers(1,ibox),npw,ws,ts,
+     2                   rmlexp(iaddr(2,ibox)),
+     3                   sourcesort(1,istarts),nptssrc,
+     4                      pot(1,istarts))
+                     endif
                   endif
-                  if (ifpgh.eq.2) then
-                     call g3dpwevalg_vec(nd,delta,eps,
+                  if (ifpgh.eq.2.and.nptssrc.gt.ngdir) then
+                     call g3dpwevalg_fast_vec(nd,delta,eps,
+     1                   centers(1,ibox),npw,ws,ts,
+     2                   rmlexp(iaddr(2,ibox)),
+     3                   sourcesort(1,istarts),nptssrc,
+     4                   pot(1,istarts),grad(1,1,istarts))
+                  elseif (ifpgh.eq.2.and.nptssrc.le.ngdir) then
+                     call g3dpwevalg_vec(nd,delta,
      1                   centers(1,ibox),npw,ws,ts,
      2                   rmlexp(iaddr(2,ibox)),
      3                   sourcesort(1,istarts),nptssrc,
      4                   pot(1,istarts),grad(1,1,istarts))
                   endif
-                  if (ifpgh.eq.3) then
-                     call g3dpwevalh_vec(nd,delta,eps,
+                  if (ifpgh.eq.3.and.nptssrc.gt.nhdir) then
+                     call g3dpwevalh_fast_vec(nd,delta,eps,
+     1                   centers(1,ibox),npw,ws,ts,
+     2                   rmlexp(iaddr(2,ibox)),
+     3                   sourcesort(1,istarts),nptssrc,
+     4                   pot(1,istarts),grad(1,1,istarts),
+     5                   hess(1,1,istarts))
+                  elseif (ifpgh.eq.3.and.nptssrc.le.nhdir) then
+                     call g3dpwevalh_vec(nd,delta,
      1                   centers(1,ibox),npw,ws,ts,
      2                   rmlexp(iaddr(2,ibox)),
      3                   sourcesort(1,istarts),nptssrc,
@@ -1084,7 +1154,7 @@ c     evaluate local expansion at sources
             endif
          enddo
          call cpu_time(t2)
- 222     format ('ilev=', i1,4x, 'nb=',i6, 4x,'pwevalp=', f6.2)
+ 222     format ('ilev=', i1,4x, 'nb=',i6, 4x,'pweval=', f6.2)
          write(6,222) ilev,nb,t2-t1
 C$OMP END PARALLEL DO        
  1500 continue

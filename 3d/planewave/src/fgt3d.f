@@ -162,7 +162,7 @@ c     it determines the speed of the algorithm when delta goes to zero.
 c     ndiv is the maximum number of points per box at or below the cutoff level
 c     it's determined by numerical experiments on finding the crossover point
 c     between direct evaluation and the fast scheme.
-      ndiv = 200
+      ndiv = 100
 c
       ifunif = 0
       iper = 0
@@ -189,7 +189,7 @@ c     than 20 for high precision calculation
       enddo
       
 cccc      if (npwlevel .ge. 0) nlmax=npwlevel+1
-      
+
       write(6,*) ' nlmax',nlmax
       
       nlmin = 0
@@ -734,6 +734,7 @@ C$OMP$SCHEDULE(DYNAMIC)
             iend = isrcse(2,ibox)
             npts = iend-istart+1
 c           Check if the current box is a nonempty leaf box            
+cccc            if(nchild.eq.0.and.npts.gt.0.and.npts.le.ndiv) then
             if(nchild.eq.0.and.npts.gt.0) then
                ifhung(ibox) = 1
                ndirect = ndirect+1
@@ -901,6 +902,7 @@ c
 
       
       do 1100 ilev = nlevels,max(npwlevel+1,0),-1
+cccc      do 1100 ilev = npwlevel,npwlevel
          nb=0
          nb1=0
          dt=0
@@ -1100,6 +1102,7 @@ C$    time2=omp_get_wtime()
       timeinfo(1)=time2-time1
 
 
+      if (1.eq.1) then
       
       if(ifprint .ge. 1)
      $      call prinf('=== STEP 2 (merge mp) ====*',i,0)
@@ -1145,9 +1148,6 @@ C$OMP$SCHEDULE(DYNAMIC)
               call g3dshiftpw_vec(nd,nexp,rmlexp(iaddr(1,jbox)),
      1            rmlexp(iaddr(1,ibox)),
      2            wpwmsshift(1,k,klev))
-cccc              call g3dshiftpw0_vec(nd,delta,npw,
-cccc     1            rmlexp(iaddr(1,jbox)),centers(1,jbox),
-cccc     1            rmlexp(iaddr(1,ibox)),centers(1,ibox),ws,ts)
             endif
           enddo
         enddo
@@ -1159,7 +1159,7 @@ C$OMP END PARALLEL DO
 C$    time2=omp_get_wtime()
       timeinfo(2)=time2-time1
 c
-
+      endif
       
       if(ifprint.ge.1)
      $    call prinf('=== Step 3 (mp to loc) ===*',i,0)
@@ -1200,9 +1200,6 @@ c
 
               call g3dshiftpw_vec(nd,nexp,rmlexp(iaddr(1,jbox)),
      1            rmlexp(iaddr(2,ibox)),wpwshift(1,jx,jy,jz))
-cccc              call g3dshiftpw0_vec(nd,delta,npw,
-cccc     1            rmlexp(iaddr(1,jbox)),centers(1,jbox),
-cccc     1            rmlexp(iaddr(2,ibox)),centers(1,ibox),ws,ts)
            enddo
            call g3dcopypwexp_vec(nd,nexp,rmlexp(iaddr(1,ibox)),
      1         rmlexp(iaddr(2,ibox)))
@@ -1219,7 +1216,7 @@ C$    time2=omp_get_wtime()
 
 cccc      call prin2('timeinfo4=*',time2-time1,1)
 
-      
+      if (1.eq.1) then
       if(ifprint.ge.1)
      $    call prinf('=== Step 4 (split loc) ===*',i,0)
 
@@ -1272,9 +1269,6 @@ C$OMP$SCHEDULE(DYNAMIC)
               call g3dshiftpw_vec(nd,nexp,rmlexp(iaddr(2,ibox)),
      1            rmlexp(iaddr(2,jbox)),
      2            wpwmsshift(1,k,nlevels-ilev))
-cccc              call g3dshiftpw0_vec(nd,delta,npw,
-cccc     1            rmlexp(iaddr(2,ibox)),centers(1,ibox),
-cccc     1            rmlexp(iaddr(2,jbox)),centers(1,jbox),ws,ts)
             enddo
           endif
         enddo
@@ -1286,23 +1280,25 @@ C$OMP END PARALLEL DO
 C$    time2=omp_get_wtime()
       timeinfo(4) = time2-time1
 
-
+      endif
       
       if(ifprint.ge.1)
      $    call prinf('=== step 5 (eval loc) ===*',i,0)
 
 c     ... step 5, evaluate all local expansions
+      call cpu_time(time1)
 C$    time1=omp_get_wtime()
       
       do 1500 ilev = nlevstart,nlevels
+cccc      do 1500 ilev = npwlevel,npwlevel
 C$OMP PARALLEL DO DEFAULT(SHARED)
 C$OMP$PRIVATE(ibox,istart,iend,i,npts)
 C$OMP$SCHEDULE(DYNAMIC)
          call cpu_time(t1)
          allocate(local(0:nlocal(ilev),0:nlocal(ilev),
      1       0:nlocal(ilev),nd))
-c     nptsswitch determines whether to use pweval directly
-c     or to use pw2local, then loc eval.
+c        nptsswitch determines whether to use pweval directly
+c        or to use pw2local, then loc eval.
          r1=(nlocal(ilev)+1.0d0)/npw
          r2=r1*r1
          r3=r1*r2
@@ -1311,7 +1307,7 @@ c           in this case, always do pweval
             nptsswitch=1000000
          else
 c           in this case, do pweval if npts is < nptsswitch
-            nptsswitch=5*int((r1+r2+r3)*npw/(3-r3))
+            nptsswitch=10*int((r1+r2+r3)*npw/(3-r3))
          endif
          print *, nptsswitch
          
@@ -1447,14 +1443,8 @@ c                 evaluate local expansion at sources
           endif
 ccc    end of ibox loop        
         enddo
-cccc         if (ifprint.ge.1) then
-cccc            call prinf('ilev=*',ilev,1)
-cccc            call prinf('total number of boxes at this level=*',nb,1)
-cccc            call prin2('time on local eval=*',dt,1)
-cccc            call prin2('time on PW to local=*',dtt,1)
-cccc         endif
  222    format ('ilev=', i1,4x, 'nb=',i6, 4x,'loc eval=', f5.2, 4x,
-     1       'pw2l=', f5.2,4x, 'nb1=',i6,4x,'pwevalc=', f5.2)         
+     1       'pw2l=', f5.2,4x, 'nb1=',i6,4x,'pweval=', f5.2)         
         write(6,222) ilev,nb,dt,dtt,nb1,dttt
         deallocate(local)
 C$OMP END PARALLEL DO        
