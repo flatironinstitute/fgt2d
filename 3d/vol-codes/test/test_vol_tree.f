@@ -29,7 +29,7 @@ cc      dpars(4) = 0.75d0
       norder = 8 
       iptype = 0 
       npbox = norder*norder*norder
-      iprec = 2
+      iprec = 1
               
       print *, ""
       print *, ""

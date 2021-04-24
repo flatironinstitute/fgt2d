@@ -1,8 +1,8 @@
 
 EXEC = int2-vol_tree
 
-HOST = osx
-#HOST=linux-gfortran
+#HOST = osx
+HOST=linux-gfortran
 #HOST=linux-ifort
 #HOST=linux-gfortran-prof
 #HOST=linux-gfortran-openmp
