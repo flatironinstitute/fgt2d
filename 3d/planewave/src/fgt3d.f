@@ -936,7 +936,7 @@ c           in this case, always do formpw
             nptsswitch=1000000
          else
 c           in this case, do formpw if npts is < nptsswitch
-            nptsswitch=4*int((r1+2*r2+r3)*npw/(3-r3))
+            nptsswitch=0*int((r1+2*r2+r3)*npw/(3-r3))
          endif
          print *, nptsswitch
          
@@ -1307,7 +1307,7 @@ c           in this case, always do pweval
             nptsswitch=1000000
          else
 c           in this case, do pweval if npts is < nptsswitch
-            nptsswitch=10*int((r1+r2+r3)*npw/(3-r3))
+            nptsswitch=0*int((r1+r2+r3)*npw/(3-r3))
          endif
          print *, nptsswitch
          

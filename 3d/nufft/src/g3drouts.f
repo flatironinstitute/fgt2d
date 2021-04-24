@@ -118,7 +118,7 @@ C
       real *8 cent(3),sources(3,ns),charge(nd,ns)
       real *8 ffexp(0:nterms,0:nterms,0:nterms,nd)
       real *8 x,y,chg
-      real *8, allocatable ::  xp(:),yp(:),zp(:)
+      real *8, allocatable ::  xp(:),yp(:),zp(:),sqk(:)
 C
 C     initialize coefficients to zero.
 C
@@ -135,11 +135,16 @@ C
       allocate(xp(0:nterms))
       allocate(yp(0:nterms))
       allocate(zp(0:nterms))
+      allocate(sqk(nterms))
 c
       dsq = 1.0D0/dsqrt(delta)
 C
 C     accumulate expansion due to each source.
 C
+      do k=1,nterms
+         sqk(k)=dsqrt(dble(k))
+      enddo
+
       do i=1,ns
          x = (sources(1,i) - cent(1))*dsq
          y = (sources(2,i) - cent(2))*dsq
@@ -148,10 +153,9 @@ C
          yp(0) = 1.0D0
          zp(0) = 1.0D0
          do k = 1,nterms
-            tmp = dsqrt(dble(k))
-            xp(k) = xp(k-1)*x/tmp
-            yp(k) = yp(k-1)*y/tmp
-            zp(k) = zp(k-1)*z/tmp
+            xp(k) = xp(k-1)*x/sqk(k)
+            yp(k) = yp(k-1)*y/sqk(k)
+            zp(k) = zp(k-1)*z/sqk(k)
          enddo
 c
          do ind=1,nd
@@ -206,6 +210,7 @@ C
       real *8 x,y,delta,dsq,tmp,d1,d2
       real *8, allocatable ::  hx(:),hy(:),hz(:)
       real *8, allocatable ::  dxhx(:),dyhy(:),dzhz(:)
+      real *8, allocatable :: sqk(:)
 C
 C     initialize coefficients to zero.
 C
@@ -222,8 +227,13 @@ C
       allocate(hy(0:nterms))
       allocate(hz(0:nterms))
       allocate(dxhx(0:nterms),dyhy(0:nterms),dzhz(0:nterms))
+      allocate(sqk(nterms))
 c
       dsq = 1.0D0/dsqrt(delta)
+      
+      do k=1,nterms
+         sqk(k)=dsqrt(dble(k))
+      enddo
 C
 C     accumulate expansion due to each source.
 C
@@ -238,13 +248,12 @@ C
          dyhy(0) = 0.0D0
          dzhz(0) = 0.0D0
          do j1 = 1,nterms
-            tmp = dsqrt(dble(j1))
-            hy(j1)=hy(j1-1)*y/tmp
-            hx(j1)=hx(j1-1)*x/tmp
-            hz(j1)=hz(j1-1)*z/tmp
-            dxhx(j1) = j1*dsq*hx(j1-1)/tmp
-            dyhy(j1) = j1*dsq*hy(j1-1)/tmp
-            dzhz(j1) = j1*dsq*hz(j1-1)/tmp
+            hy(j1)=hy(j1-1)*y/sqk(j1)
+            hx(j1)=hx(j1-1)*x/sqk(j1)
+            hz(j1)=hz(j1-1)*z/sqk(j1)
+            dxhx(j1) = j1*dsq*hx(j1-1)/sqk(j1)
+            dyhy(j1) = j1*dsq*hy(j1-1)/sqk(j1)
+            dzhz(j1) = j1*dsq*hz(j1-1)/sqk(j1)
          enddo
 c
          do ind = 1,nd
@@ -257,11 +266,10 @@ c
                d3 = dzhz(l)*r3
                do k=0,nterms
                   c1 = hy(k)*d1
-                  c2 = dyhy(k)*d2
-                  c3 = hy(k)*d3
+                  c2 = dyhy(k)*d2+hy(k)*d3
                   do j=0,nterms
                      ffexp(j,k,l,ind) = ffexp(j,k,l,ind)
-     1                   +dxhx(j)*c1+hx(j)*(c2+c3)
+     1                   +dxhx(j)*c1+hx(j)*c2
                enddo
             enddo
             enddo
@@ -361,14 +369,11 @@ c
                d3 = dzhz(l)*r3
                
                do k=0,nterms
-                  rtmp=ztmp*hy(k)
-
                   c1 = hy(k)*d1
-                  c2 = dyhy(k)*d2
-                  c3 = hy(k)*d3
+                  c2 = dyhy(k)*d2+hy(k)*(d3+ztmp)
                   do j=0,nterms
                      ffexp(j,k,l,ind) = ffexp(j,k,l,ind)+
-     1                   dxhx(j)*c1+hx(j)*(c2+c3+rtmp)
+     1                   dxhx(j)*c1+hx(j)*c2
                enddo
             enddo
             enddo
@@ -399,6 +404,7 @@ C     ffexp    = coefficients of far field expansion
 C     nterms   = number of terms in expansion
 C     cent     = center of the expansion
 C     targ     = target location
+C     ntarg    = number of targets
 C
 C     OUTPUT:
 C
@@ -597,6 +603,7 @@ C     ffexp    = coefficients of far field expansion
 C     nterms   = number of terms in expansion
 C     cent     = center of the expansion
 C     targ     = target location
+C     ntarg    = number of targets
 C
 C     OUTPUT:
 C
@@ -766,7 +773,7 @@ C     INPUT
 C
 c     nd            = vector length (parallel)
 C     delta         = Gaussian variance
-C     sources(2,ns) = coordinates of sources
+C     sources(3,ns) = coordinates of sources
 C     ns            = number of sources
 C     charge        = strength of sources
 C     center        = center of the expansion
@@ -841,8 +848,8 @@ c     nd            = vector length (parallel)
 C     delta         = Gaussian variance
 C     sources(3,ns) = coordinates of sources
 C     ns            = number of sources
-C     rnormal   = dipole directions
-C     dipstr    = dipole strengths 
+C     rnormal       = dipole directions
+C     dipstr        = dipole strengths 
 C     center        = center of the expansion
 C     nlocal        = number of terms in local exp
 C
@@ -930,8 +937,8 @@ c     nd            = vector length (parallel)
 C     delta         = Gaussian variance
 C     sources(3,ns) = coordinates of sources
 C     ns            = number of sources
-C     rnormal   = dipole directions
-C     dipstr    = dipole strengths 
+C     rnormal       = dipole directions
+C     dipstr        = dipole strengths 
 C     center        = center of the expansion
 C     nlocal        = number of terms in local exp
 C
@@ -1030,8 +1037,8 @@ C     delta         = Gaussian variance
 C     center        = center of the expansion
 C     nlocal        = number of terms in local expansions
 C     local         = local Taylor expansion
-c
 C     targ          = target location
+C     ntarg         = number of targets
 C
 C     OUTPUT:
 C
@@ -1040,7 +1047,7 @@ C
       implicit real*8 (a-h,o-z)
       real *8 local(0:nlocal,0:nlocal,0:nlocal,nd)
       real *8 center(3),targ(3,ntarg)
-      real *8 pot(nd,ntarg),xp(0:200),yp(0:200),zp(0:200)
+      real *8 pot(nd,ntarg),xp(0:100),yp(0:100),zp(0:100)
 C
       dsq = 1.0D0/dsqrt(delta)
 C
@@ -1097,8 +1104,8 @@ C     delta         = Gaussian variance
 C     center        = center of the expansion
 C     nlocal        = number of terms in local expansions
 C     local         = local Taylor expansion
-c
 C     targ          = target location
+C     ntarg         = number of targets
 C
 C     OUTPUT:
 C
@@ -1196,8 +1203,8 @@ C     delta         = Gaussian variance
 C     center        = center of the expansion
 C     nlocal        = number of terms in local expansions
 C     local         = local Taylor expansion
-c
 C     targ          = target location
+C     ntarg         = number of targets
 C
 C     OUTPUT:
 C
@@ -1292,28 +1299,27 @@ c
                      d2xx=d2xx+local(j3,j2,j1,ind)*xpxx(j3)
                   enddo
                   d1=d1+d2*yp(j2)
-                  
                   d1x=d1x+d2x*yp(j2)
-                  d1y=d1y+d2*ypy(j2)
+                  d1xx=d1xx+d2xx*yp(j2)
                   
+                  d1y=d1y+d2*ypy(j2)
                   d1xy=d1xy+d2x*ypy(j2)
                   
-                  d1xx=d1xx+d2xx*yp(j2)
                   d1yy=d1yy+d2*ypyy(j2)
                enddo
                dd=dd+d1*zp(j1)
-               
                g1=g1+d1x*zp(j1)
                g2=g2+d1y*zp(j1)
-               g3=g3+d1*zpz(j1)
-               
+
                h11=h11+d1xx*zp(j1)
                h22=h22+d1yy*zp(j1)
-               h33=h33+d1*zpzz(j1)
-               
                h12=h12+d1xy*zp(j1)
+               
+               g3=g3+d1*zpz(j1)
                h13=h13+d1x*zpz(j1)
                h23=h23+d1y*zpz(j1)
+               
+               h33=h33+d1*zpzz(j1)
             enddo
             pot(ind,itarg) = pot(ind,itarg)+dd
             
@@ -1336,7 +1342,7 @@ c
 C
 C***********************************************************************
 C
-C 2D translations (h2l, h2sx_h2s_real, h2sx_h2s)
+C 3D translations (h2l, h2pw, h2pw_real)
 C
 c***********************************************************************      
       subroutine g3dherm2local_vec(nd,nlocal,ntermsh,h2l,
@@ -1451,99 +1457,473 @@ C
 C
 C
 C
-C***********************************************************************
-      subroutine g3dhermzero_vec(nd,hexp,ntermsh)
-      implicit none
-C***********************************************************************
+      subroutine g3dh2pw_vec(nd,ntermsh,npw,h2x,
+     1    hexp,pwexp)
+C
+C     This subroutine converts the Hermite expansion to the PW
+C     expansion
+C
+C     INPUT
+C
+c     nd            = vector length (parallel)
+C     delta         = Gaussian variance
+C     center        = center of the expansion
+C     ntermsh       = number of terms in Hermite exp
+C     npw           = number of exponentials in PW exp 
+C     h2x           = matrix converting the Hermite expansion to the X expansion (1D)
+C     hexp          = Hermite expansion
+C      
+C     OUTPUT:
+C
+C     hwexp         = plane wave expansion
+C      
+      implicit real*8 (a-h,o-z)
+cccc      complex *16 h2x(npw,0:ntermsh)
+      complex *16 h2x(0:ntermsh,npw)
+      real *8 hexp(0:ntermsh,0:ntermsh,0:ntermsh,nd)
+      complex *16 pwexp(npw,npw,npw/2,nd)
+
+      complex *16, allocatable :: pxhyz(:,:,:),pxyhz(:,:,:)
+      complex *16 eye,cd
+      
+      eye = dcmplx(0,1)
 c
-c     This subroutine sets a vector multipole expansion to zero.
-c-----------------------------------------------------------------------
-c     INPUT:
-c
-c     nd     :   vector length (number of mpole expansions)
-c     ntermsh :   order of multipole expansion
-C---------------------------------------------------------------------
-c     OUTPUT:
-c
-c     hexp  :   coeffs for the expansion set to zero.
-C---------------------------------------------------------------------
-      integer n,ntermsh,nd,ii
-      real *8 hexp((ntermsh+1)*(ntermsh+1)*(ntermsh+1),nd)
-c
-      do ii=1,nd
-      do n=1,(ntermsh+1)*(ntermsh+1)*(ntermsh+1)
-         hexp(n,ii)=0.0d0
-      enddo
-      enddo
-      return
-      end
+      allocate(pxhyz(npw,0:ntermsh,0:ntermsh))
+      allocate(pxyhz(npw,npw,0:ntermsh))
+
 c      
-c      
-c      
-c      
-C***********************************************************************
-      subroutine g3dlocalzero_vec(nd,local,nlocal)
-      implicit none
-C***********************************************************************
-c
-c     This subroutine sets a vector local expansion to zero.
-c-----------------------------------------------------------------------
-c     INPUT:
-c
-c     nd     :   vector length (number of mpole expansions)
-c     nlocal :   order of local expansion
-C---------------------------------------------------------------------
-c     OUTPUT:
-c
-c     local  :   coeffs for the expansion set to zero.
-C---------------------------------------------------------------------
-      integer n,nlocal,nd,ii
-      real *8 local((nlocal+1)*(nlocal+1)*(nlocal+1),nd)
-c
-      do ii=1,nd
-      do n=1,(nlocal+1)*(nlocal+1)*(nlocal+1)
-         local(n,ii)=0.0d0
-      enddo
-      enddo
-      return
-      end
-c      
-c      
-c      
-c      
-c
-cC***********************************************************************
-      subroutine g3dpwzero_vec(nd,pwexp,npw)
-      implicit none
-C***********************************************************************
-c
-c     This subroutine sets a vector planewave expansion to zero.
-c-----------------------------------------------------------------------
-c     INPUT:
-c
-c     nd     :   vector length (number of mpole expansions)
-c     npw    :   number of terms in 1d planewave expansion
-C---------------------------------------------------------------------
-c     OUTPUT:
-c
-c     pwexp  :   coeffs for the expansion set to zero.
-C---------------------------------------------------------------------
-      integer n,npw,nd,ii
-      complex *16 pwexp(npw*npw*npw/2,nd)
-c
-      do ii=1,nd
-         do n=1,npw*npw*npw/2
-            pwexp(n,ii)=0.0d0
+      do ind=1,nd
+c        transform in x
+         do j1=0,ntermsh
+            do j2=0,ntermsh
+               do k3=1,npw/2
+                  cd=0
+                  do j3=0,ntermsh
+cccc                     cd=cd+h2x(k3,j3)*hexp(j3,j2,j1,ind)
+                     cd=cd+h2x(j3,k3)*hexp(j3,j2,j1,ind)
+                  enddo
+                  pxhyz(k3,j2,j1)=cd
+                  pxhyz(npw-k3+1,j2,j1)=conjg(cd)
+               enddo
+            enddo
+         enddo
+
+c        transform in y
+         do j1=0,ntermsh
+            do k2=1,npw
+               do k3=1,npw
+                  cd=0
+                  do j2=0,ntermsh
+cccc                     cd=cd+h2x(k2,j2)*pxhyz(k3,j2,j1)
+                     cd=cd+h2x(j2,k2)*pxhyz(k3,j2,j1)
+                  enddo
+                  pxyhz(k3,k2,j1)=cd
+               enddo
+            enddo
+         enddo
+
+c        transform in z
+         do k1=1,npw/2
+            do k2=1,npw
+               do k3=1,npw
+                  cd=0
+                  do j1=0,ntermsh
+cccc                     cd=cd+h2x(k1,j1)*pxyhz(k3,k2,j1)
+                     cd=cd+h2x(j1,k1)*pxyhz(k3,k2,j1)
+                  enddo
+                  pwexp(k3,k2,k1,ind) = pwexp(k3,k2,k1,ind) + cd
+               enddo
+            enddo
          enddo
       enddo
       
       return
       end
-c      
-c      
-c      
+C
+C
+C
+C
+C
+      subroutine g3dh2pw_real_vec(nd,ntermsh,npw,h2x,
+     1    hexp,pwexp)
+C
+C     This subroutine converts the Hermite expansion to the PW
+C     expansion
+C
+C     INPUT
+C
+c     nd            = vector length (parallel)
+C     delta         = Gaussian variance
+C     center        = center of the expansion
+C     ntermsh       = number of terms in Hermite exp
+C     npw           = number of exponentials in PW exp 
+C     h2x           = REAL matrix converting the Hermite expansion to the X expansion (1D)
+C     hexp          = Hermite expansion
+C      
+C     OUTPUT:
+C
+C     hwexp         = plane wave expansion
+C      
+      implicit real*8 (a-h,o-z)
+      real *8 h2x(0:ntermsh,npw)
+      real *8 hexp(0:ntermsh,0:ntermsh,0:ntermsh,nd)
+      complex *16 pwexp(npw,npw,npw/2,nd)
+
+      complex *16, allocatable :: pxhyz(:,:,:),pxyhz(:,:,:)
+      complex *16 eye,cd,c0,c1,c2,c3,ce,co
+      
+      eye = dcmplx(0,1)
+c
+      allocate(pxhyz(npw,0:ntermsh,0:ntermsh))
+      allocate(pxyhz(npw,npw,0:ntermsh))
+c
+      npw2=npw/2
+      
+      do ind=1,nd
+c        transform in x
+         do j1=0,ntermsh
+            do j2=0,ntermsh
+               do k3=1,npw/2
+                  c0=0
+                  c1=0
+                  c2=0
+                  c3=0
+                  do j3=0,ntermsh,4
+                     c0=c0+h2x(j3,k3)*hexp(j3,j2,j1,ind)
+                  enddo
+                  do j3=1,ntermsh,4
+                     c1=c1+h2x(j3,k3)*hexp(j3,j2,j1,ind)
+                  enddo
+                  do j3=2,ntermsh,4
+                     c2=c2+h2x(j3,k3)*hexp(j3,j2,j1,ind)
+                  enddo
+                  do j3=3,ntermsh,4
+                     c3=c3+h2x(j3,k3)*hexp(j3,j2,j1,ind)
+                  enddo
+                  ce=c0-c2
+                  co=eye*(c1-c3)
+                  pxhyz(k3,j2,j1)=ce+co
+                  pxhyz(npw-k3+1,j2,j1)=ce-co
+               enddo
+            enddo
+         enddo
+
+c        transform in y
+         do j1=0,ntermsh
+            do k2=1,npw2
+               do k3=1,npw
+                  c0=0
+                  c1=0
+                  c2=0
+                  c3=0                  
+                  do j2=0,ntermsh,4
+                     c0=c0+h2x(j2,k2)*pxhyz(k3,j2,j1)
+                  enddo
+                  do j2=1,ntermsh,4
+                     c1=c1+h2x(j2,k2)*pxhyz(k3,j2,j1)
+                  enddo
+                  do j2=2,ntermsh,4
+                     c2=c2+h2x(j2,k2)*pxhyz(k3,j2,j1)
+                  enddo
+                  do j2=3,ntermsh,4
+                     c3=c3+h2x(j2,k2)*pxhyz(k3,j2,j1)
+                  enddo
+                  ce=c0-c2
+                  co=eye*(c1-c3)
+                  pxyhz(k3,k2,j1)=ce+co
+                  pxyhz(k3,npw-k2+1,j1)=ce-co
+               enddo
+            enddo
+         enddo
+         
+c        transform in z
+         do k1=1,npw/2
+            do k2=1,npw
+               do k3=1,npw
+                  c0=0
+                  c1=0
+                  c2=0
+                  c3=0
+                  do j1=0,ntermsh,4
+                     c0=c0+h2x(j1,k1)*pxyhz(k3,k2,j1)
+                  enddo
+                  do j1=1,ntermsh,4
+                     c1=c1+h2x(j1,k1)*pxyhz(k3,k2,j1)
+                  enddo
+                  do j1=2,ntermsh,4
+                     c2=c2+h2x(j1,k1)*pxyhz(k3,k2,j1)
+                  enddo
+                  do j1=3,ntermsh,4
+                     c3=c3+h2x(j1,k1)*pxyhz(k3,k2,j1)
+                  enddo
+                  pwexp(k3,k2,k1,ind) = pwexp(k3,k2,k1,ind) +
+     1                c0-c2+eye*(c1-c3)
+               enddo
+            enddo
+         enddo
+       enddo
+         
+      return
+      end
+C
+C
+C
+C
+C      
+C***********************************************************************
+C
+C 3D translations pw2local, pw2local_real
+C
+c***********************************************************************      
+      subroutine g3dpw2local_vec(nd,nlocal,npw,pw2l,
+     1    pwexp,local)
+C
+C     This subroutine converts four SOE expansions to local
+C     expansions
+C
+C     INPUT
+C
+c     nd            = vector length (parallel)
+C     nlocal        = number of terms in local exp
+C     npw          = number of exponentials in PW exp
+C     pw2l           = matrix converting PW expansion to the local expansion
+C     pwexp        = PW expansions
+C      
+C     OUTPUT:
+C
+C     local         = local Taylor expansions
+C      
+      implicit real*8 (a-h,o-z)
+      complex *16 pw2l(npw,0:nlocal)
+      real *8 local(0:nlocal,0:nlocal,0:nlocal,nd)
+      complex *16 pwexp(npw,npw,npw/2,nd)
+      complex *16, allocatable :: lxpyz(:,:,:),lxypz(:,:,:)
+      complex *16 cd
 c      
 c
+      allocate(lxpyz(0:nlocal,npw,npw/2))
+      allocate(lxypz(0:nlocal,0:nlocal,npw/2))
+
+      npw2=npw/2
+
+      do ind=1,nd
+c        transform in x
+         do j1=1,npw/2
+            do j2=1,npw
+               do k3=0,nlocal
+                  cd=0
+                  do j3=1,npw
+                     cd=cd+pw2l(j3,k3)*pwexp(j3,j2,j1,ind)
+                  enddo
+                  lxpyz(k3,j2,j1)=cd
+               enddo
+            enddo
+         enddo
+
+c        transform in y
+         do j1=1,npw/2
+            do k2=0,nlocal
+               do k3=0,nlocal
+                  cd=0
+                  do j2=1,npw
+                     cd=cd+pw2l(j2,k2)*lxpyz(k3,j2,j1)
+                  enddo
+                  lxypz(k3,k2,j1)=cd
+               enddo
+            enddo
+         enddo
+
+c        transform in z
+         do k1=0,nlocal
+            do k2=0,nlocal
+               do k3=0,nlocal
+                  cd=0
+                  do j1=1,npw/2
+                     cd=cd+pw2l(j1,k1)*lxypz(k3,k2,j1)
+                  enddo
+                  local(k3,k2,k1,ind)=dble(cd)*2
+               enddo
+            enddo
+         enddo
+      enddo
+         
+      return
+      end
+C
+C
+C
+C
+      subroutine g3dpw2local_real_vec(nd,nlocal,npw,pw2l,
+     1    pwexp,local)
+C
+C     This subroutine converts four SOE expansions to local
+C     expansions
+C
+C     INPUT
+C
+c     nd            = vector length (parallel)
+C     nlocal        = number of terms in local exp
+C     npw          = number of exponentials in PW exp
+C     pw2l         = REAL matrix converting PW expansion to the local expansion
+C     pwexp        = PW expansions
+C      
+C     OUTPUT:
+C
+C     local         = local Taylor expansions
+C      
+      implicit real*8 (a-h,o-z)
+      real *8 pw2l(npw,0:nlocal)
+      real *8 local(0:nlocal,0:nlocal,0:nlocal,nd)
+      complex *16 pwexp(npw,npw,npw/2,nd)
+      complex *16, allocatable :: lxpyz(:,:,:),lxypz(:,:,:)
+      complex *16 cd,eye
+c      
+c
+      allocate(lxpyz(0:nlocal,npw,npw/2))
+      allocate(lxypz(0:nlocal,0:nlocal,npw/2))
+c      
+c
+      eye = dcmplx(0,1)
+      
+      npw2=npw/2
+
+      do ind=1,nd
+c        transform in x
+         do j1=1,npw/2
+            do j2=1,npw
+               do k3=0,nlocal,4
+                  cd=0
+                  do j3=1,npw2
+                     cd=cd+pw2l(j3,k3)*(pwexp(j3,j2,j1,ind)+
+     1                   pwexp(npw-j3+1,j2,j1,ind))
+                  enddo
+                  lxpyz(k3,j2,j1)=cd
+               enddo
+               do k3=1,nlocal,4
+                  cd=0
+                  do j3=1,npw2
+                     cd=cd+pw2l(j3,k3)*(pwexp(j3,j2,j1,ind)-
+     1                   pwexp(npw-j3+1,j2,j1,ind))
+                  enddo
+                  lxpyz(k3,j2,j1)=cd*eye
+               enddo
+               do k3=2,nlocal,4
+                  cd=0
+                  do j3=1,npw2
+                     cd=cd+pw2l(j3,k3)*(pwexp(j3,j2,j1,ind)+
+     1                   pwexp(npw-j3+1,j2,j1,ind))
+                  enddo
+                  lxpyz(k3,j2,j1)=-cd
+               enddo
+               do k3=3,nlocal,4
+                  cd=0
+                  do j3=1,npw2
+                     cd=cd+pw2l(j3,k3)*(pwexp(j3,j2,j1,ind)-
+     1                   pwexp(npw-j3+1,j2,j1,ind))
+                  enddo
+                  lxpyz(k3,j2,j1)=-eye*cd
+               enddo
+            enddo
+         enddo
+c        transform in y
+         do j1=1,npw/2
+            do k2=0,nlocal,4
+               do k3=0,nlocal
+                  cd=0
+                  do j2=1,npw2
+                     cd=cd+pw2l(j2,k2)*(lxpyz(k3,j2,j1)+
+     1                   lxpyz(k3,npw-j2+1,j1))
+                  enddo
+                  lxypz(k3,k2,j1)=cd
+               enddo
+            enddo
+            do k2=1,nlocal,4
+               do k3=0,nlocal
+                  cd=0
+                  do j2=1,npw2
+                     cd=cd+pw2l(j2,k2)*(lxpyz(k3,j2,j1)-
+     1                   lxpyz(k3,npw-j2+1,j1))
+                  enddo
+                  lxypz(k3,k2,j1)=cd*eye
+               enddo
+            enddo
+            do k2=2,nlocal,4
+               do k3=0,nlocal
+                  cd=0
+                  do j2=1,npw/2
+                     cd=cd+pw2l(j2,k2)*(lxpyz(k3,j2,j1)+
+     1                   lxpyz(k3,npw-j2+1,j1))
+                  enddo
+                  lxypz(k3,k2,j1)=-cd
+               enddo
+            enddo
+            do k2=3,nlocal,4
+               do k3=0,nlocal
+                  cd=0
+                  do j2=1,npw/2
+                     cd=cd+pw2l(j2,k2)*(lxpyz(k3,j2,j1)-
+     1                   lxpyz(k3,npw-j2+1,j1))
+                  enddo
+                  lxypz(k3,k2,j1)=-eye*cd
+               enddo
+            enddo
+         enddo
+         
+c        transform in z
+         do k1=0,nlocal,4
+            do k2=0,nlocal
+               do k3=0,nlocal
+                  cd=0
+                  do j1=1,npw/2
+                     cd=cd+pw2l(j1,k1)*lxypz(k3,k2,j1)
+                  enddo
+                  local(k3,k2,k1,ind)=dble(cd)*2
+               enddo
+            enddo
+         enddo
+         do k1=1,nlocal,4
+            do k2=0,nlocal
+               do k3=0,nlocal
+                  cd=0
+                  do j1=1,npw/2
+                     cd=cd+pw2l(j1,k1)*lxypz(k3,k2,j1)
+                  enddo
+                  local(k3,k2,k1,ind)=-aimag(cd)*2
+               enddo
+            enddo
+         enddo
+         do k1=2,nlocal,4
+            do k2=0,nlocal
+               do k3=0,nlocal
+                  cd=0
+                  do j1=1,npw/2
+                     cd=cd+pw2l(j1,k1)*lxypz(k3,k2,j1)
+                  enddo
+                  local(k3,k2,k1,ind)=-dble(cd)*2
+               enddo
+            enddo
+         enddo
+         do k1=3,nlocal,4
+            do k2=0,nlocal
+               do k3=0,nlocal
+                  cd=0
+                  do j1=1,npw/2
+                     cd=cd+pw2l(j1,k1)*lxypz(k3,k2,j1)
+                  enddo
+                  local(k3,k2,k1,ind)=aimag(cd)*2
+               enddo
+            enddo
+         enddo
+      enddo
+         
+      return
+      end
+C
+C
+C
+C
+C
+C
 C************************************************************************
 C
 C     form PW exp subroutines (charge, dipole, charge+dipole)
@@ -2989,29 +3369,32 @@ c
 c
 c     
 c
+c*********************************************************************
+C
+C shift PW expansions (mp to loc, mp to mp, loc to loc)
+C
+C*********************************************************************
       subroutine pw_translation_matrices(xmin,npw,ts,nmax,
-     1    nexp,wshift)
+     1              wshift)
 C
-C     This subroutine precomputes all translation matrices for all SOE/X
-C     expansions from child to parent or vice versa.
-C
-c     used in mp to mp or loc to loc stage
+C     This subroutine precomputes all translation matrices for PW
+C     expansions for mp to loc at the cutoff level.
 c      
 C     INPUT
 C
-c     nd      = vector length (for multiple charges at same locations)
-C     npw     = number of terms in plane wave exp
+c     xmin    = scaled (by 1/sqrt(delta) boxsize at the cutoff level
+C     npw     = number of terms in 1d plane wave expansion
+C     ts      = 1d pw expansion nodes
 C     nmax    = number of different translation lengths in the whole scheme 
-C     ts      = pw nodes
 c      
 C     OUTPUT:
 C
 C     wshift  = table of translation matrices for PW shift 
 C
       implicit real *8 (a-h,o-z)
-      real *8 ts(-npw/2:npw/2-1)
+      real *8 ts(npw)
       
-      complex *16 wshift(nexp,-nmax:nmax,-nmax:nmax,-nmax:nmax)
+      complex *16 wshift(npw*npw*npw/2,-nmax:nmax,-nmax:nmax,-nmax:nmax)
       
       complex *16,allocatable:: ww(:,:)
 
@@ -3019,22 +3402,26 @@ C
 C
       eye = dcmplx(0,1)
       
-      allocate(ww(-npw/2:npw/2-1,-nmax:nmax))
+      allocate(ww(npw,-nmax:nmax))
 
 
-      do j1=-npw/2,npw/2-1
-         do k1=-nmax,nmax
-            ww(j1,k1) = exp(eye*ts(j1)*xmin*k1)
+      do j1=1,npw
+         ztmp = exp(eye*ts(j1)*xmin)
+         ww(j1,0)=1
+         do k1=1,nmax
+            ww(j1,k1) = ztmp
+            ztmp = ztmp*ztmp
+            ww(j1,-k1) = dconjg(ww(j1,k1))
          enddo
       enddo
       
       do k1=-nmax,nmax
       do k2=-nmax,nmax
       do k3=-nmax,nmax
-         j=0
-         do j1=-npw/2,-1
-         do j2=-npw/2,npw/2-1
-         do j3=-npw/2,npw/2-1
+         j=0   
+         do j1=1,npw/2
+         do j2=1,npw
+         do j3=1,npw
             j=j+1
             wshift(j,k3,k2,k1) = ww(j3,k3)*ww(j2,k2)*ww(j1,k1)
          enddo
@@ -3050,6 +3437,89 @@ c
 c
 c     
 c
+      subroutine merge_split_pw_matrices(xmin,npw,ts,nmax,
+     1           wshift)
+C
+C     This subroutine precomputes all translation matrices for 
+c     PW translations from child to parent or vice versa.
+C
+C     INPUT
+C
+c     xmin     = half of the scaled (by 1/sqrt(delta) size of the box 
+c                at the finest level
+C     npw      = number of terms in 1d PW expansion
+C     ws,ts    = real *8, 1d PW expansion weights and nodes
+C     nmax     = number of different translation lengths in the whole scheme 
+C
+C     OUTPUT:
+C
+C     wshift   = table of translation matrices for PW  shift used in
+c                merge mp and split loc stage
+C
+      implicit real *8 (a-h,o-z)
+      real *8 xmin
+      complex *16 wshift(npw*npw*npw/2,8,nmax)
+      real *8 ts(npw)
+      complex *16 ztmp
+      complex *16 eye
+      complex *16, allocatable:: ww(:,:)
+C
+      eye =dcmplx(0,1)
+      
+      allocate(ww(npw,nmax))
+
+
+      do j1=1,npw
+         ztmp = exp(eye*ts(j1)*xmin)
+         do k1=1,nmax
+            ww(j1,k1) = ztmp
+            ztmp = ztmp*ztmp
+         enddo
+      enddo
+      
+      do k1=1,nmax
+         j=0
+         do j1=1,npw/2
+         do j2=1,npw
+         do j3=1,npw
+            j=j+1
+c           pp p              
+            wshift(j,1,k1) = ww(j3,k1)*ww(j2,k1)
+     1          *ww(j1,k1)
+c           pm p
+            wshift(j,2,k1) = ww(j3,k1)*conjg(ww(j2,k1))
+     1          *ww(j1,k1)
+c           mp p
+            wshift(j,3,k1) = conjg(ww(j3,k1))*ww(j2,k1)
+     1          *ww(j1,k1)
+c           mm p
+            wshift(j,4,k1) = conjg(ww(j3,k1))*conjg(ww(j2,k1))
+     1          *ww(j1,k1)
+            
+c           pp m              
+            wshift(j,5,k1) = ww(j3,k1)*ww(j2,k1)
+     1          *conjg(ww(j1,k1))
+c           pm m
+            wshift(j,6,k1) = ww(j3,k1)*conjg(ww(j2,k1))
+     1          *conjg(ww(j1,k1))
+c           mp m
+            wshift(j,7,k1) = conjg(ww(j3,k1))*ww(j2,k1)
+     1          *conjg(ww(j1,k1))
+c           mm m
+            wshift(j,8,k1) = conjg(ww(j3,k1))*conjg(ww(j2,k1))
+     1          *conjg(ww(j1,k1))
+            
+         enddo
+         enddo
+         enddo
+      enddo
+
+      return
+      end
+c
+c
+c
+c      
       subroutine g3dshiftpw_vec(nd,nexp,pwexp1,
      1              pwexp2,wshift)
 C
@@ -3123,3 +3593,96 @@ c
 C
 c
 C
+C***********************************************************************
+      subroutine g3dhermzero_vec(nd,hexp,ntermsh)
+      implicit none
+C***********************************************************************
+c
+c     This subroutine sets a vector multipole expansion to zero.
+c-----------------------------------------------------------------------
+c     INPUT:
+c
+c     nd     :   vector length (number of mpole expansions)
+c     ntermsh :   order of multipole expansion
+C---------------------------------------------------------------------
+c     OUTPUT:
+c
+c     hexp  :   coeffs for the expansion set to zero.
+C---------------------------------------------------------------------
+      integer n,ntermsh,nd,ii
+      real *8 hexp((ntermsh+1)*(ntermsh+1)*(ntermsh+1),nd)
+c
+      do ii=1,nd
+      do n=1,(ntermsh+1)*(ntermsh+1)*(ntermsh+1)
+         hexp(n,ii)=0.0d0
+      enddo
+      enddo
+      return
+      end
+c      
+c      
+c      
+c      
+C***********************************************************************
+      subroutine g3dlocalzero_vec(nd,local,nlocal)
+      implicit none
+C***********************************************************************
+c
+c     This subroutine sets a vector local expansion to zero.
+c-----------------------------------------------------------------------
+c     INPUT:
+c
+c     nd     :   vector length (number of mpole expansions)
+c     nlocal :   order of local expansion
+C---------------------------------------------------------------------
+c     OUTPUT:
+c
+c     local  :   coeffs for the expansion set to zero.
+C---------------------------------------------------------------------
+      integer n,nlocal,nd,ii
+      real *8 local((nlocal+1)*(nlocal+1)*(nlocal+1),nd)
+c
+      do ii=1,nd
+      do n=1,(nlocal+1)*(nlocal+1)*(nlocal+1)
+         local(n,ii)=0.0d0
+      enddo
+      enddo
+      return
+      end
+c      
+c      
+c      
+c      
+c
+cC***********************************************************************
+      subroutine g3dpwzero_vec(nd,pwexp,npw)
+      implicit none
+C***********************************************************************
+c
+c     This subroutine sets a vector planewave expansion to zero.
+c-----------------------------------------------------------------------
+c     INPUT:
+c
+c     nd     :   vector length (number of mpole expansions)
+c     npw    :   number of terms in 1d planewave expansion
+C---------------------------------------------------------------------
+c     OUTPUT:
+c
+c     pwexp  :   coeffs for the expansion set to zero.
+C---------------------------------------------------------------------
+      integer n,npw,nd,ii
+      complex *16 pwexp(npw*npw*npw/2,nd)
+c
+      do ii=1,nd
+         do n=1,npw*npw*npw/2
+            pwexp(n,ii)=0.0d0
+         enddo
+      enddo
+      
+      return
+      end
+c      
+c      
+c      
+c      
+c

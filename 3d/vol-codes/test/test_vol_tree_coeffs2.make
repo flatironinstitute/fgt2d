@@ -55,7 +55,7 @@ SOURCES =  test_vol_tree.f \
   $(COM)/legetens.f \
   $(COM)/hkrand.f \
   $(COM)/dlaran.f \
-  $(SRC)/tree_vol_coeffs.f \
+  $(SRC)/tree_vol_coeffs2.f \
   $(SRC)/voltab3d.f \
 
 

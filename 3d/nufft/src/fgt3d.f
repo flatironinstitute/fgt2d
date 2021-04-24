@@ -777,8 +777,7 @@ c     compute translation matrices for PW expansions
       nmax = 1
       nexp = npw*npw*npw/2
       allocate(wpwshift(nexp,-nmax:nmax,-nmax:nmax,-nmax:nmax))
-      call pw_translation_matrices(xmin,npw,ts,nmax,
-     1    nexp,wpwshift)
+      call pw_translation_matrices(xmin,npw,ts,nmax,wpwshift)
 
       allocate(wnufft(nexp))
       call nufft_weights(npw,ws,ts,nexp,wnufft)
@@ -962,7 +961,7 @@ c                 copy the multipole PW exp into local PW exp
             enddo
 C     $OMP END PARALLEL DO
          endif
- 111     format ('ilev=', i1,4x, 'nb=',i6, 4x,'formpwc=', f6.2)
+ 111     format ('ilev=', i1,4x, 'nb=',i6, 4x,'formpw=', f6.2)
          write(6,111) ilev,nb,dt
 c     end of ilev do loop
  1100 continue

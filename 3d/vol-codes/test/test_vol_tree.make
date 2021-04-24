@@ -4,7 +4,7 @@ EXEC = int2-vol_tree
 #HOST = osx
 HOST=linux-gfortran
 #HOST=linux-ifort
-#HOST=linux-gfortran-prof
+HOST=linux-gfortran-prof
 #HOST=linux-gfortran-openmp
 
 ifeq ($(HOST),osx)
@@ -16,15 +16,16 @@ endif
 
 ifeq ($(HOST),linux-gfortran)
 FC = gfortran
-FFLAGS = -O3 -march=native -funroll-loops -std=legacy -ftree-vectorize -ffast-math -c -w  
-FLINK = gfortran -w -o $(EXEC) 
-FEND = -lopenblas 
+FFLAGS = -O3 -march=native -funroll-loops -std=legacy -ftree-vectorize -ffast-math -c -w 
+FLINK = gfortran -w -o $(EXEC)
+FEND = -lopenblasp-r0.2.19 
+#FEND = -lblas 
 endif
 
 ifeq ($(HOST),linux-gfortran-prof)
 FC = gfortran
-FFLAGS = -O3 -march=native -pg -g -funroll-loops -std=legacy -ftree-vectorize -ffast-math -c -w  
-FLINK = gfortran -w -o $(EXEC) -pg
+FFLAGS = -O3 -march=native -pg -no-pie -g -funroll-loops -std=legacy -ftree-vectorize -ffast-math -c -w  
+FLINK = gfortran -w -o $(EXEC) -pg -no-pie
 FEND = -lblas -llapack
 endif
 
