@@ -1676,7 +1676,7 @@ c     Rearrange old arrays now
             centers(3,curbox) = tcenters(3,ibox)
             do i=1,npbox
               do idim=1,nd
-                fvals(idim,i,ibox) = tfvals(idim,i,ibox)
+                fvals(idim,i,curbox) = tfvals(idim,i,ibox)
               enddo
             enddo
             iflag(curbox) = tiflag(ibox)
@@ -1692,7 +1692,7 @@ c     Rearrange old arrays now
             nchild(curbox) = tnchild(ibox)
             do i=1,npbox
               do idim=1,nd
-                fvals(idim,i,ibox) = tfvals(idim,i,ibox)
+                fvals(idim,i,curbox) = tfvals(idim,i,ibox)
               enddo
             enddo
             iflag(curbox) = tiflag(ibox)
