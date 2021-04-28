@@ -1430,3 +1430,69 @@ c
 
       return
       end
+c
+c
+c
+c
+      subroutine legval2coefs_3d(nd,norder,fvals,fcoefs,umat)
+c
+c   convert a 3d legendre expansion at collection of points 
+c
+c
+c
+      implicit real *8 (a-h,o-z)
+      real *8 fvals(nd,norder,norder,norder)
+      real *8 fcoefs(nd,norder,norder,norder),umat(norder,norder)
+      real *8, allocatable:: fcvv(:,:,:,:),fccv(:,:,:,:)
+
+      allocate(fcvv(nd,norder,norder,norder))
+      allocate(fccv(nd,norder,norder,norder))
+      
+      do i=1,norder
+         do j=1,norder
+            do k=1,norder
+               do ind=1,nd
+                  dd=0
+                  do k1=1,norder
+                     dd=dd+umat(k,k1)*fvals(ind,k1,j,i)
+                  enddo
+                  fcvv(ind,k,j,i)=dd
+               enddo
+            enddo
+         enddo
+      enddo
+
+      do i=1,norder
+         do j=1,norder
+            do k=1,norder
+               do ind=1,nd
+                  dd=0
+                  do j1=1,norder
+                     dd=dd+umat(j,j1)*fcvv(ind,k,j1,i)
+                  enddo
+                  fccv(ind,k,j,i)=dd
+               enddo
+            enddo
+         enddo
+      enddo
+
+      do i=1,norder
+         do j=1,norder
+            do k=1,norder
+               do ind=1,nd
+                  dd=0
+                  do i1=1,norder
+                     dd=dd+umat(i,i1)*fccv(ind,k,j,i1)
+                  enddo
+                  fcoefs(ind,k,j,i)=dd
+               enddo
+            enddo
+         enddo
+      enddo
+
+      return
+      end
+c
+c
+c
+c

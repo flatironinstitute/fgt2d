@@ -311,7 +311,7 @@ c
 
       real *8 rsc,ra
       integer nbloc,nbctr,nbadd,irefine,ilev,ifirstbox,ilastbox
-      integer nbtot,iii,idim
+      integer nbtot,iii,idim,iper
       
 
       nbmax = 100000
@@ -468,8 +468,8 @@ c
           allocate(fvals2(nd,npbox,nbmax))
           allocate(rintbs2(nbmax))
 
-          call tree_copy(nd,nbctr,npbox,centers,ilevel,iparent,nchild,
-     1            ichild,fvals,centers2,ilevel2,iparent2,nchild2,
+          call vol_tree_copy(nd,nbctr,npbox,centers,ilevel,iparent,
+     1            nchild,ichild,fvals,centers2,ilevel2,iparent2,nchild2,
      2            ichild2,fvals2)
           call dcopy(nbctr,rintbs,1,rintbs2,1)
 
@@ -480,7 +480,7 @@ c
           allocate(nchild(nbmax),ichild(8,nbmax),fvals(nd,npbox,nbmax))
           allocate(rintbs(nbmax))
 
-          call tree_copy(nd,nbctr,npbox,centers2,ilevel2,iparent2,
+          call vol_tree_copy(nd,nbctr,npbox,centers2,ilevel2,iparent2,
      1            nchild2,ichild2,fvals2,centers,ilevel,iparent,nchild,
      2            ichild,fvals)
           call dcopy(nbctr,rintbs2,1,rintbs,1)
@@ -526,9 +526,9 @@ c
           allocate(nchild2(nbmax),ichild2(8,nbmax))
           allocate(fvals2(nd,npbox,nbmax),rintbs2(nbmax))
 
-          call tree_copy(nd,nboxes,npbox,centers,ilevel,iparent,nchild,
-     1            ichild,fvals,centers2,ilevel2,iparent2,nchild2,
-     2            ichild2,fvals2)
+          call vol_tree_copy(nd,nboxes,npbox,centers,ilevel,iparent,
+     1         nchild,ichild,fvals,centers2,ilevel2,iparent2,nchild2,
+     2         ichild2,fvals2)
           call dcopy(nboxes,rintbs,1,rintbs2,1)
 
           deallocate(centers,ilevel,iparent,nchild,ichild,fvals,rintbs)
@@ -538,7 +538,7 @@ c
           allocate(nchild(nbmax),ichild(8,nbmax),fvals(nd,npbox,nbmax))
           allocate(rintbs(nbmax))
 
-          call tree_copy(nd,nboxes,npbox,centers2,ilevel2,iparent2,
+          call vol_tree_copy(nd,nboxes,npbox,centers2,ilevel2,iparent2,
      1          nchild2,ichild2,fvals2,centers,ilevel,iparent,nchild,
      2          ichild,fvals)
           call dcopy(nboxes,rintbs2,1,rintbs,1)
@@ -558,8 +558,10 @@ c
           enddo
         enddo
 
+        iper = 0
+
         call computecoll(nlevels,nboxes,laddr,boxsize,centers,
-     1        iparent,nchild,ichild,nnbors,nbors)
+     1        iparent,nchild,ichild,iper,nnbors,nbors)
 
         if(nlevels.ge.2) then
           call vol_tree_fix_lr(fun,nd,dpars,zpars,ipars,norder,npbox,
@@ -665,6 +667,7 @@ c
 
       integer i,ilev,irefine,itype,nbmax,nlmax,npbox,npc,ii
       integer ifirstbox,ilastbox,nbctr,nbloc
+      integer iper
       real *8 rsc
 
       real *8 ra
@@ -791,10 +794,10 @@ c
         enddo
       enddo
 
-
+      iper = 0
       call computecoll(nlevels,nboxes0,itree(iptr(1)),boxsize,centers,
      1        itree(iptr(3)),itree(iptr(4)),itree(iptr(5)),
-     2        itree(iptr(6)),itree(iptr(7)))
+     2        iper,itree(iptr(6)),itree(iptr(7)))
 
       if(nlevels.ge.2) then
          call vol_tree_fix_lr(fun,nd,dpars,zpars,ipars,norder,npbox,
@@ -1393,7 +1396,7 @@ c
 c
 c
 c
-       subroutine tree_copy(nd,nb,npb,centers,ilevel,iparent,
+       subroutine vol_tree_copy(nd,nb,npb,centers,ilevel,iparent,
      1            nchild,ichild,fvals,centers2,ilevel2,iparent2,nchild2,
      2            ichild2,fvals2)
 
@@ -1433,117 +1436,6 @@ c
 c
 c
 c
-c
-
-      subroutine computecoll(nlevels,nboxes,laddr,boxsize,
-     1                       centers,iparent,nchild,ichild,
-     2                       nnbors,nbors)
-
-c     This subroutine computes the colleagues for an adaptive
-c     pruned tree. box j is a colleague of box i, if they share a
-c     vertex or an edge and the two boxes are at the same
-c     level in the tree
-c
-c     INPUT arguments
-c     nlevels     in: integer
-c                 Number of levels
-c
-c     nboxes      in: integer
-c                 Total number of boxes
-c
-c     laddr       in: integer(2,0:nlevels)
-c                 indexing array providing access to boxes at
-c                 each level. 
-c                 the first box on level i is laddr(1,i)
-c                 the last box on level i is laddr(2,i)
-c
-c     boxsize     in: double precision(0:;nlevels)
-c                 Array of boxsizes
-c 
-c     centers     in: double precision(3,nboxes)
-c                 array of centers of boxes
-c   
-c     iparent     in: integer(nboxes)
-c                 iparent(i) is the box number of the parent of
-c                 box i
-c
-c     nchild      in: integer(nboxes)
-c                 nchild(i) is the number of children of box i
-c
-c     ichild      in: integer(8,nboxes)
-c                 ichild(j,i) is the box id of the jth child of
-c                 box i
-c
-c----------------------------------------------------------------
-c     OUTPUT
-c     nnbors      out: integer(nboxes)
-c                 nnbors(i) is the number of colleague boxes of
-c                 box i
-c
-c     nbors       out: integer(27,nboxes)
-c                 nbors(j,i) is the box id of the jth colleague
-c                 box of box i
-c---------------------------------------------------------------
-      implicit none
-      integer nlevels,nboxes
-      integer laddr(2,0:nlevels)
-      double precision boxsize(0:nlevels)
-      double precision centers(3,nboxes)
-      integer iparent(nboxes), nchild(nboxes), ichild(8,nboxes)
-      integer nnbors(nboxes)
-      integer nbors(27,nboxes)
-
-c     Temp variables
-      integer ilev,ibox,jbox,kbox,dad
-      integer i,j,ifirstbox,ilastbox
-
-
-c     Setting parameters for level = 0
-      nnbors(1) = 1
-      nbors(1,1) = 1
-      do ilev = 1,nlevels
-c        Find the first and the last box at level ilev      
-         ifirstbox = laddr(1,ilev)
-         ilastbox = laddr(2,ilev)
-c        Loop over all boxes to evaluate neighbors, list1 and updating
-c        hunglists of targets
-
-C$OMP PARALLEL DO DEFAULT(SHARED)
-C$OMP$PRIVATE(ibox,dad,i,jbox,j,kbox)
-         do ibox = ifirstbox,ilastbox
-c           Find the parent of the current box         
-            dad = iparent(ibox)
-c           Loop over the neighbors of the parent box
-c           to find out list 1 and list 2
-            do i=1,nnbors(dad)
-                jbox = nbors(i,dad)
-                do j=1,8
-c               ichild(j,jbox) is one of the children of the
-c               neighbors of the parent of the current
-c               box
-                   kbox = ichild(j,jbox)
-                   if(kbox.gt.0) then
-c               Check if kbox is a nearest neighbor or in list 2
-                      if((abs(centers(1,kbox)-centers(1,ibox)).le.
-     1                   1.05*boxsize(ilev)).and.
-     2                   (abs(centers(2,kbox)-centers(2,ibox)).le.
-     3                   1.05*boxsize(ilev)).and.
-     4                   (abs(centers(3,kbox)-centers(3,ibox)).le.
-     5                   1.05*boxsize(ilev))) then
-                     
-                         nnbors(ibox) = nnbors(ibox)+1
-                         nbors(nnbors(ibox),ibox) = kbox
-                      endif
-                   endif
-                enddo
-            enddo
-c           End of computing colleagues of box i
-         enddo
-C$OMP END PARALLEL DO         
-      enddo
-
-      return
-      end
 
 c-------------------------------------------------------------      
       subroutine vol_tree_fix_lr(fun,nd,dpars,zpars,ipars,norder,
@@ -1567,7 +1459,7 @@ c
       integer, allocatable :: iflag(:)
 
       integer i,j,k,l,ibox,jbox,kbox,ilev,idad,igranddad
-      integer nbloc,ict
+      integer nbloc,ict,iper
       real *8 xdis,ydis,zdis,distest
 
       external fun
@@ -1736,10 +1628,11 @@ C$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j)
             nbors(j,i) = -1
          enddo
       enddo
-C$OMP END PARALLEL DO      
+C$OMP END PARALLEL DO     
+      iper = 0
       call computecoll(nlevels,nboxes,laddr, boxsize,
-     1                   centers,iparent,nchild,
-     2                   ichild,nnbors,nbors)
+     1                centers,iparent,nchild,
+     2                ichild,iper,nnbors,nbors)
 
 c     Processing of flag and flag+ boxes is done
 c     Start processing flag++ boxes. We will use a similar
@@ -1851,10 +1744,11 @@ C$OMP PARALLEL DO DEFAULT(SHARED) PRIVATE(i,j)
          enddo
       enddo
 C$OMP END PARALLEL DO    
-
+      
+      iper = 0
       call computecoll(nlevels,nboxes,laddr, boxsize,
      1                   centers,iparent,nchild,
-     2                   ichild,nnbors,nbors)
+     2                   ichild,iper,nnbors,nbors)
       
 
       return
@@ -1950,7 +1844,7 @@ c     Temporary variables
          tladdr(1,ilev) = laddr(1,ilev)
          tladdr(2,ilev) = laddr(2,ilev)
       enddo
-      call tree_copy(nd,nboxes,npbox,centers,ilevel,iparent,nchild,
+      call vol_tree_copy(nd,nboxes,npbox,centers,ilevel,iparent,nchild,
      1            ichild,fvals,tcenters,tilevel,tiparent,tnchild,
      2            tichild,tfvals)
 

@@ -4,7 +4,7 @@ EXEC = int2-vol_tree
 HOST = osx
 #HOST=linux-gfortran
 #HOST=linux-ifort
-HOST=linux-gfortran-prof
+#HOST=linux-gfortran-prof
 #HOST=linux-gfortran-openmp
 
 ifeq ($(HOST),osx)
@@ -56,6 +56,7 @@ SOURCES =  test_vol_tree.f \
   $(COM)/hkrand.f \
   $(COM)/dlaran.f \
   $(SRC)/tree_vol_coeffs.f \
+  $(SRC)/tree_routs3d.f \
   $(SRC)/voltab3d.f \
 
 
